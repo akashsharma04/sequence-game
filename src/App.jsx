@@ -470,7 +470,7 @@ export default function App() {
 
   if (mode === "lobby") return <main className="seq-lobby seq-lobby-intro" onPointerDownCapture={handleLobbyAudio}>
     <div className="seq-logo seq-logo-launch" aria-label="Game logo"><span>♠</span><i>●</i></div><p className="seq-eyebrow seq-intro-eyebrow">A STRATEGY GAME FOR EVERYONE</p>
-    <h1 className="seq-title-launch">Sequence<span>.</span></h1><p className="seq-subtitle seq-subtitle-launch">Your move. Make your mark. Connect five.</p>
+    <h1 className="seq-title-launch">CHIPORA</h1><div className="seq-brand-tag">SEQUENCE GAME</div><p className="seq-subtitle seq-subtitle-launch">Your move. Make your mark. Connect five.</p>
     <div className="seq-hero-deck" aria-hidden="true"><span>A♠</span><span> K♥</span><span>Q♦</span><span>J♣</span><span>10♠</span></div>
     <div className="seq-hero-chips" aria-hidden="true"><i/><i/><i/><i/><i/></div>
     <button className="seq-sound-toggle" type="button" onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "♫ Sound on" : "♫ Sound off"}</button>
