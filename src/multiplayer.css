@@ -283,3 +283,74 @@
   .seq-intro-eyebrow,.seq-title-launch,.seq-subtitle-launch,.seq-hero-deck span,
   .seq-hero-chips i,.seq-lobby-card{animation:none!important;opacity:1;transform:none}
 }
+
+
+/* CHIPORA brand lockup and clear mobile control spacing */
+.seq-brand-tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  margin:4px 0 0;padding:5px 12px;border:1px solid #e8cc83aa;border-radius:999px;
+  color:#f4dda0;background:linear-gradient(180deg,#174a35,#0b3023);
+  font:800 9px/1 system-ui,sans-serif;letter-spacing:.25em;
+  box-shadow:0 2px 0 #68491d,inset 0 1px 0 #fff2;
+}
+.seq-title-launch{
+  font:900 clamp(42px,11vw,72px)/1 system-ui,sans-serif!important;
+  letter-spacing:.055em!important;
+  background:linear-gradient(180deg,#fff8d9 0%,#ffe7a0 24%,#e9bd5c 48%,#fff0b4 68%,#b77d29 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 2px 0 #9a6b2a) drop-shadow(0 5px 0 #60431d) drop-shadow(0 9px 13px #0009);
+  text-shadow:none;
+}
+.seq-title-launch::after{content:"";display:block;width:58%;height:2px;margin:8px auto 0;border-radius:50%;background:linear-gradient(90deg,transparent,#ffe9a8,transparent);filter:drop-shadow(0 0 5px #f2d68a)}
+.seq-lobby-card{
+  overflow:visible;
+  padding:clamp(22px,5vw,30px);
+  margin-top:8px;
+}
+.seq-lobby-card h2{margin-bottom:16px}
+.seq-lobby-card .seq-profile-link{
+  display:inline-block;margin:0 0 18px;padding:8px 0;
+  color:#f0d795;text-underline-offset:4px;
+}
+.seq-lobby-card>.seq-primary{
+  display:block;min-height:56px;width:100%;
+  margin:12px 0 22px;padding:14px 16px;
+  line-height:1.25;white-space:normal;
+}
+.seq-lobby-card>label{
+  display:block;margin:2px 0 9px;padding-top:2px;
+  color:#e4e8d8;font:600 13px/1.4 system-ui,sans-serif;
+}
+.seq-lobby-card>select,
+.seq-profile select,
+.seq-profile input{
+  display:block;width:100%;min-height:52px;margin:0 0 20px;padding:12px 15px;
+  border:1px solid #6e9b80;border-radius:12px;
+  background:#0d4936;color:#fff8e8;font:500 16px system-ui,sans-serif;
+  box-shadow:inset 0 2px 5px #001b12aa,0 2px 0 #041d16;
+  color-scheme:dark;
+}
+.seq-lobby-card>select:focus-visible,
+.seq-profile select:focus-visible,
+.seq-profile input:focus-visible{
+  outline:2px solid #ffe6a0;outline-offset:3px;
+  border-color:#ffe6a0;box-shadow:0 0 0 5px #f1d68c25;
+}
+.seq-lobby-card>.seq-secondary{margin-top:4px}
+.seq-lobby-card .seq-or{margin:20px 0}
+.seq-lobby-card .seq-join{margin-top:8px}
+.seq-lobby-card .seq-join input{min-height:50px}
+.seq-lobby-card .seq-note{margin-top:14px;overflow-wrap:anywhere}
+.seq-lobby-card .seq-profile{padding:14px;margin:0 0 18px;border:1px solid #c9a85e55;border-radius:14px;background:#082a20}
+.seq-lobby-card .seq-profile label{margin:10px 0 7px}
+.seq-lobby-card .seq-profile .seq-primary{min-height:46px;margin-top:8px}
+@media(max-width:480px){
+ .seq-lobby-intro{justify-content:flex-start;padding:18px 14px max(28px,env(safe-area-inset-bottom))}
+ .seq-intro-eyebrow{margin-top:12px}
+ .seq-subtitle-launch{margin:10px 0 18px;font-size:14px}
+ .seq-hero-deck{height:68px;margin:-3px 0 6px}
+ .seq-hero-deck span{width:43px;height:60px;font-size:15px}
+ .seq-hero-chips{margin:0 0 12px}
+ .seq-sound-toggle{margin-bottom:14px}
+ .seq-lobby-card{width:100%;margin-top:8px}
+}
