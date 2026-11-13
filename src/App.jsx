@@ -71,8 +71,23 @@ function Rules() {
   return <div className="seq-rules">{RULES.map(([title, body]) => <details key={title}><summary>{title}</summary><p>{body}</p></details>)}</div>;
 }
 
+function chooseAiMove(state) {
+  const candidates = [];
+  state.hands[1].forEach((card, cardIndex) => {
+    const spaces = playable(state, card, 1);
+    spaces.forEach(([r, c]) => {
+      const centerDistance = Math.abs(4.5 - r) + Math.abs(4.5 - c);
+      const score = (card === "JD" || card === "JC" ? 2 : 0) - centerDistance * 0.04 + Math.random() * 0.15;
+      candidates.push({ cardIndex, r, c, score });
+    });
+  });
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0] || null;
+}
+
 export default function App() {
   const [mode, setMode] = useState("lobby");
+  const [gameMode, setGameMode] = useState("online");
   const [room, setRoom] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [seat, setSeat] = useState(-1);
@@ -95,6 +110,18 @@ export default function App() {
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = host; }, [host]);
+
+  useEffect(() => {
+    if (gameMode !== "ai" || !state || state.over || state.turn !== 1) return;
+    const timer = window.setTimeout(() => {
+      const current = stateRef.current;
+      if (!current || current.over || current.turn !== 1) return;
+      const move = chooseAiMove(current);
+      if (!move) return;
+      publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [gameMode, state]);
 
   useEffect(() => {
     if (!state) {
@@ -202,7 +229,16 @@ export default function App() {
     return true;
   };
 
+  const createAiGame = () => {
+    if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+    const initial = newGame(); initial.veil = false; initial.toast = "";
+    stateRef.current = initial; setState(initial); setRoom("SOLO"); setSeat(0);
+    setHost(true); hostRef.current = true; setPlayers([{ key: playerId, seat: 0 }, { key: "chip-ai", seat: 1 }]);
+    setConnected(true); setGameMode("ai"); setMode("game");
+  };
+
   const createRoom = async () => {
+    setGameMode("online");
     if (!supabase) { setNotice("Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local to enable online play."); return; }
     const code = roomCode();
     const initial = newGame(); initial.veil = false; initial.toast = "";
@@ -214,6 +250,7 @@ export default function App() {
   const joinRoom = async () => {
     const code = codeInput.trim().toUpperCase();
     if (code.length !== 6) { setNotice("Enter the six-character room code."); return; }
+    setGameMode("online");
     hostIdRef.current = null; joinRequestedRef.current = false;
     setHost(false); hostRef.current = false; setSeat(1);
     await connect(code, false);
@@ -232,7 +269,7 @@ export default function App() {
     : isDead(state, selected) ? "Both spaces for this card are occupied. Swap it for a new card."
     : isJack(selected) ? twoEyed(selected) ? "Wild Jack! Choose any empty space on the board." : "One-eyed Jack! Remove an opponent chip that is not in a completed Sequence."
     : "Tap one of the glowing spaces to place your chip."
-    : `Waiting for ${team.name} to play…`;
+    : gameMode === "ai" && state.turn === 1 ? "Chip is thinking…" : `Waiting for ${team.name} to play…`;
 
   const chooseCard = index => {
     if (!myTurn) return;
@@ -258,8 +295,9 @@ export default function App() {
     <div className="seq-logo">♠</div><p className="seq-eyebrow">THE CLASSIC BOARD GAME</p>
     <h1>Sequence<span>.</span></h1><p className="seq-subtitle">Think ahead. Play together. Make your Sequence.</p>
     <section className="seq-lobby-card">
-      <h2>Play with a friend</h2>
-      <button className="seq-primary" onClick={createRoom}>＋ Create a room</button>
+      <h2>Play Sequence</h2>
+      <button className="seq-primary" onClick={createAiGame}>♟ Play against Chip (AI)</button>
+      <button className="seq-primary seq-secondary" onClick={createRoom}>＋ Play with a friend · Create room</button>
       <div className="seq-or"><span/>OR<span/></div>
       <label htmlFor="sequence-room">Join with a room code</label>
       <div className="seq-join"><input id="sequence-room" value={codeInput} maxLength={6} placeholder="ABC123" onChange={e => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}/><button className="seq-primary" onClick={joinRoom}>Join</button></div>
@@ -285,7 +323,7 @@ export default function App() {
       <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
-      <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : i === 0 ? "Host" : "Opponent"}</small>
+      <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : gameMode === "ai" ? "Chip · AI" : i === 0 ? "Host" : "Opponent"}</small>
       <div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[i].length ? "full" : ""}`}/>)}</div>
     </div>)}</section>
     <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>
