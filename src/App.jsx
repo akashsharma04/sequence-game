@@ -376,7 +376,7 @@ export default function App() {
         <button className="seq-primary" onClick={saveProfile}>Save profile</button>
       </div>}
       <button className="seq-primary" onClick={createAiGame}>♟ Play against Chip (AI)</button>
-      <button className="seq-primary seq-secondary" onClick={createRoom}>＋ Play with a friend · Create room</button>
+      <label htmlFor="seq-player-count">Players in online room</label><select id="seq-player-count" value={playerCount} onChange={e=>setPlayerCount(Number(e.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players · 2 teams</option></select><button className="seq-primary seq-secondary" onClick={createRoom}>＋ Create {playerCount}-player room</button>
       <div className="seq-or"><span/>OR<span/></div>
       <label htmlFor="sequence-room">Join with a room code</label>
       <div className="seq-join"><input id="sequence-room" value={codeInput} maxLength={6} placeholder="ABC123" onChange={e => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}/><button className="seq-primary" onClick={joinRoom}>Join</button></div>
@@ -401,15 +401,12 @@ export default function App() {
     <header className="seq-header"><div><p className="seq-eyebrow">SEQUENCE · ONLINE</p><h1>Game table</h1></div>
       <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
-    <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
-      <span className="dot"/><b>{t.name}</b><small>{i === seat ? playerName : gameMode === "ai" ? "Chip · AI" : i === 0 ? "Host" : "Opponent"}</small>
-      <div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[i].length ? "full" : ""}`}/>)}</div>
-    </div>)}</section>
-    <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>
+    <section className="top">{Array.from({length:state.seatCount},(_,i) => { const ti=teamForSeat(state,i), t=TEAMS[ti], member=players.find(p=>p.seat===i); return <div key={i} className={`team ${i === state.turn ? "on" : ""}`} style={{"--c":t.color}}><span className="dot"/><b>{t.name} · P{i+1}</b><small>{i===seat?playerName:gameMode==="ai"&&i===1?"Chip · AI":member?.label||"Waiting…"}</small><div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[ti].length ? "full" : ""}`}/>)}</div></div>; })}</section>
+    <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>{gameMode==="ai"&&aiThought&&<div className="seq-ai-thinking">🤖 {aiThought}</div>}
     <div className="seq-game-layout">
       <section className="seq-board-frame"><div className="board">{ROWS.map((row,r)=>row.map((value,c)=>{
         const id = r*10+c, chip = state.chips[r][c], hit = moves.some(([rr,cc])=>rr===r&&cc===c);
-        return <button key={id} className={`cell ${isCorner(r,c)?"wild":""} ${isRed(value)?"red":""} ${hit?"ok":""} ${state.last?.[0]===r&&state.last?.[1]===c?"last":""} ${sequenceCells.has(id)?"inseq":""}`} disabled={!hit} onClick={()=>playAt(r,c)} aria-label={isCorner(r,c)?"Free corner":`${rank(value)} of ${value[1]}`}>
+        return <button key={id} className={`cell ${isCorner(r,c)?"wild":""} ${isRed(value)?"red":""} ${hit?"ok":""} ${state.last?.[0]===r&&state.last?.[1]===c?"last":""} ${sequenceCells.has(id)?"inseq":""} ${winningCells.has(id)?"winner-cell":""}`} disabled={!hit} onClick={()=>playAt(r,c)} aria-label={isCorner(r,c)?"Free corner":`${rank(value)} of ${value[1]}`}>
           {isCorner(r,c)?<span className="star">★</span>:<><span className="rk">{rank(value)}</span><span className="st">{SYM[value[1]]}</span></>}
           {chip !== null && <i className={`chip ${state.locked[r][c]?"lock":""}`} style={{"--c":TEAMS[chip].color,"--d":TEAMS[chip].dark}}/>}
         </button>;
@@ -417,16 +414,18 @@ export default function App() {
       <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
         <div className="hand">{state.hands[seat].map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
         <div className="actions"><button className="btn" disabled={!canSwap} onClick={swap}>Swap dead card</button>{host&&<button className="btn ghost" onClick={restart}>New game</button>}</div>
+        {state.lastMove&&<div className="seq-last-move"><b>Latest move</b><span>{players.find(p=>p.seat===state.lastMove.seat)?.label || (state.lastMove.seat===seat?playerName:gameMode==="ai"?"Chip":"Player "+(state.lastMove.seat+1))} {state.lastMove.action} {rank(state.lastMove.card)}{SYM[state.lastMove.card[1]]} at {String.fromCharCode(65+state.lastMove.col)}{state.lastMove.row+1}</span></div>}
         <details className="log"><summary>Move history</summary><ol>{state.log.slice(0,12).map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>
+        {gameMode==="online"&&<section className="seq-chat"><b>Room chat</b><div className="seq-chat-list">{chatMessages.map((m,i)=><p key={i}><strong>{m.name}:</strong> {m.text}</p>)}</div><form onSubmit={e=>{e.preventDefault();const value=chatInput.trim();if(value){const message={name:playerName,text:value.slice(0,240)};send("chat_message",{message});setChatMessages(items=>[...items,message].slice(-40));setChatInput("");}}}><input value={chatInput} onChange={e=>setChatInput(e.target.value)} maxLength={240} placeholder="Type a message…"/><button className="btn" type="submit">Send</button></form></section>}
         <button className="seq-link" onClick={()=>setRulesOpen(v=>!v)}>Game rules</button>{rulesOpen&&<Rules/>}
       </aside>
     </div>
     {notice && <div className="seq-notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss notification">×</button></div>}
     {state.toast && !state.over && <div className="seq-toast" role="status">{state.toast}</div>}
-    {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{state.winner === seat ? "Congratulations! You won!" : "Better luck next time!"}</h2><p>{TEAMS[state.winner ?? state.turn].name} completed two Sequences. Great game!</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
+    {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{teamForSeat(state,seat) === state.winner ? "Congratulations! You won!" : "Better luck next time!"}</h2><p>{TEAMS[state.winner ?? teamForSeat(state,state.turn)].name} {state.winReason || "completed the winning Sequences"}. The highlighted chips show the winning line.</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
     <div className={`seq-chip-helper ${chipOpen?"open":""}`}>
       {chipOpen&&<section className="seq-chip-popup"><header><b>Chip · your game guide</b><button onClick={()=>setChipOpen(false)} aria-label="Close Chip">×</button></header>
-        <p>{hint}</p><p className="seq-chip-tip">{selected&&isJack(selected)?twoEyed(selected)?"A two-eyed Jack can be placed on any empty space.":"A one-eyed Jack removes an opponent chip, but not one in a completed Sequence.":"Build five connected chips in a straight line. Corners count for both players."}</p>
+        <p>{hint}</p>{gameMode==="ai"&&aiThought&&<p className="seq-chip-tip">🤖 {aiThought}</p>}<p className="seq-chip-tip">{selected&&isJack(selected)?twoEyed(selected)?"A two-eyed Jack can be placed on any empty space.":"A one-eyed Jack removes an opponent chip, but not one in a completed Sequence.":"Build five connected chips in a straight line. Corners count for both players."}</p>
         <button className="seq-link" onClick={()=>setRulesOpen(v=>!v)}>Read all rules</button>{rulesOpen&&<Rules/>}
       </section>}
       <button className="seq-chip-button" onClick={()=>setChipOpen(v=>!v)} aria-label="Open Chip game guide"><span className="seq-mascot"><i/><i/><b/></span><small>Chip</small></button>
