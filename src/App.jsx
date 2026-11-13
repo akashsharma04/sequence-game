@@ -71,13 +71,24 @@ function Rules() {
   return <div className="seq-rules">{RULES.map(([title, body]) => <details key={title}><summary>{title}</summary><p>{body}</p></details>)}</div>;
 }
 
-function chooseAiMove(state) {
+function chooseAiMove(state, difficulty = "medium") {
   const candidates = [];
   state.hands[1].forEach((card, cardIndex) => {
-    const spaces = playable(state, card, 1);
-    spaces.forEach(([r, c]) => {
-      const centerDistance = Math.abs(4.5 - r) + Math.abs(4.5 - c);
-      const score = (card === "JD" || card === "JC" ? 2 : 0) - centerDistance * 0.04 + Math.random() * 0.15;
+    playable(state, card, 1).forEach(([r, c]) => {
+      let score = Math.random() * (difficulty === "easy" ? 8 : 1);
+      if (difficulty !== "easy") {
+        const next = playCard({ ...state, sel: cardIndex }, r, c, 1);
+        score += (next.seqs[1].length - state.seqs[1].length) * 100;
+        score += (next.seqs[0].length - state.seqs[0].length) * -65;
+        const centerDistance = Math.abs(4.5 - r) + Math.abs(4.5 - c);
+        score -= centerDistance * (difficulty === "hard" ? 1.4 : 0.35);
+        if (card === "JD" || card === "JC") score -= difficulty === "hard" ? 2 : 0.5;
+        if (difficulty === "hard") {
+          const adjacent = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]]
+            .filter(([dr,dc]) => state.chips[r+dr]?.[c+dc] === 1).length;
+          score += adjacent * 1.8;
+        }
+      }
       candidates.push({ cardIndex, r, c, score });
     });
   });
@@ -88,6 +99,13 @@ function chooseAiMove(state) {
 export default function App() {
   const [mode, setMode] = useState("lobby");
   const [gameMode, setGameMode] = useState("online");
+  const [difficulty, setDifficulty] = useState(localStorage.getItem("sequence-ai-difficulty") || "medium");
+  const [playerName, setPlayerName] = useState(localStorage.getItem("sequence-player-name") || "Player");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [stats, setStats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sequence-stats") || '{"played":0,"wins":0,"losses":0}'); }
+    catch { return { played: 0, wins: 0, losses: 0 }; }
+  });
   const [room, setRoom] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [seat, setSeat] = useState(-1);
@@ -102,6 +120,7 @@ export default function App() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const previousToastRef = useRef("");
   const previousOverRef = useRef(false);
+  const statsRecordedRef = useRef(false);
   const channelRef = useRef(null);
   const stateRef = useRef(null);
   const hostRef = useRef(false);
@@ -116,7 +135,7 @@ export default function App() {
     const timer = window.setTimeout(() => {
       const current = stateRef.current;
       if (!current || current.over || current.turn !== 1) return;
-      const move = chooseAiMove(current);
+      const move = chooseAiMove(current, difficulty);
       if (move) {
         publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
         return;
@@ -127,7 +146,7 @@ export default function App() {
       }
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [gameMode, state]);
+  }, [gameMode, state, difficulty]);
 
   useEffect(() => {
     if (!state) {
@@ -143,6 +162,14 @@ export default function App() {
       const won = seat === state.winner;
       if (soundEnabled) playCelebration(won ? "win" : "lose");
       if (voiceEnabled) speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
+      if (!statsRecordedRef.current) {
+        setStats(previous => {
+          const next = { played: previous.played + 1, wins: previous.wins + (won ? 1 : 0), losses: previous.losses + (won ? 0 : 1) };
+          localStorage.setItem("sequence-stats", JSON.stringify(next));
+          return next;
+        });
+        statsRecordedRef.current = true;
+      }
     }
     previousToastRef.current = state.toast;
     previousOverRef.current = state.over;
@@ -238,6 +265,7 @@ export default function App() {
   const createAiGame = () => {
     if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
     const initial = newGame(); initial.veil = false; initial.toast = "";
+    statsRecordedRef.current = false;
     stateRef.current = initial; setState(initial); setRoom("SOLO"); setSeat(0);
     setHost(true); hostRef.current = true; setPlayers([{ key: playerId, seat: 0 }, { key: "chip-ai", seat: 1 }]);
     setConnected(true); setGameMode("ai"); setMode("game");
@@ -294,7 +322,16 @@ export default function App() {
   const restart = () => {
     if (!host) return;
     const next = newGame(); next.veil = false; next.toast = "";
+    statsRecordedRef.current = false;
     publish(next);
+  };
+
+  const saveProfile = () => {
+    const clean = playerName.trim().slice(0, 18) || "Player";
+    setPlayerName(clean);
+    localStorage.setItem("sequence-player-name", clean);
+    localStorage.setItem("sequence-ai-difficulty", difficulty);
+    setProfileOpen(false);
   };
 
   if (mode === "lobby") return <main className="seq-lobby">
@@ -302,6 +339,17 @@ export default function App() {
     <h1>Sequence<span>.</span></h1><p className="seq-subtitle">Think ahead. Play together. Make your Sequence.</p>
     <section className="seq-lobby-card">
       <h2>Play Sequence</h2>
+      <button className="seq-link seq-profile-link" onClick={() => setProfileOpen(value => !value)}>Player profile · {playerName} · {stats.wins} wins</button>
+      {profileOpen && <div className="seq-profile">
+        <label htmlFor="seq-player-name">Display name</label>
+        <input id="seq-player-name" maxLength={18} value={playerName} onChange={event => setPlayerName(event.target.value)} />
+        <label htmlFor="seq-ai-level">AI difficulty</label>
+        <select id="seq-ai-level" value={difficulty} onChange={event => setDifficulty(event.target.value)}>
+          <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+        </select>
+        <p>{stats.played} games · {stats.wins} wins · {stats.losses} losses</p>
+        <button className="seq-primary" onClick={saveProfile}>Save profile</button>
+      </div>}
       <button className="seq-primary" onClick={createAiGame}>♟ Play against Chip (AI)</button>
       <button className="seq-primary seq-secondary" onClick={createRoom}>＋ Play with a friend · Create room</button>
       <div className="seq-or"><span/>OR<span/></div>
@@ -329,7 +377,7 @@ export default function App() {
       <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
-      <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : gameMode === "ai" ? "Chip · AI" : i === 0 ? "Host" : "Opponent"}</small>
+      <span className="dot"/><b>{t.name}</b><small>{i === seat ? playerName : gameMode === "ai" ? "Chip · AI" : i === 0 ? "Host" : "Opponent"}</small>
       <div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[i].length ? "full" : ""}`}/>)}</div>
     </div>)}</section>
     <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>
@@ -341,7 +389,7 @@ export default function App() {
           {chip !== null && <i className={`chip ${state.locked[r][c]?"lock":""}`} style={{"--c":TEAMS[chip].color,"--d":TEAMS[chip].dark}}/>}
         </button>;
       }))}</div></section>
-      <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>Your hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
+      <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
         <div className="hand">{state.hands[seat].map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
         <div className="actions"><button className="btn" disabled={!canSwap} onClick={swap}>Swap dead card</button>{host&&<button className="btn ghost" onClick={restart}>New game</button>}</div>
         <details className="log"><summary>Move history</summary><ol>{state.log.slice(0,12).map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>
