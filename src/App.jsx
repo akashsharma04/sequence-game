@@ -102,13 +102,13 @@ export default function App() {
       previousOverRef.current = false;
       return;
     }
-    if (soundEnabled && state.toast?.includes("Sequence") && previousToastRef.current !== state.toast && !state.over) {
-      playCelebration("sequence");
+    if (state.toast?.includes("Sequence") && previousToastRef.current !== state.toast && !state.over) {
+      if (soundEnabled) playCelebration("sequence");
       if (voiceEnabled) speakGameMessage("Sequence completed!");
     }
-    if (soundEnabled && state.over && !previousOverRef.current) {
-      const won = seat === state.turn;
-      playCelebration(won ? "win" : "lose");
+    if (state.over && !previousOverRef.current) {
+      const won = seat === state.winner;
+      if (soundEnabled) playCelebration(won ? "win" : "lose");
       if (voiceEnabled) speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
     }
     previousToastRef.current = state.toast;
@@ -151,18 +151,22 @@ export default function App() {
     channel.on("broadcast", { event: "move_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      if (!current || current.over || current.turn !== 1 || !Number.isInteger(payload.cardIndex)) return;
-      const selected = current.hands[1]?.[payload.cardIndex];
-      if (!selected || !playable(current, selected).some(([r,c]) => r === payload.r && c === payload.c)) return;
-      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c));
+      const validation = validateMove(current, { player: 1, cardIndex: payload.cardIndex, r: payload.r, c: payload.c });
+      if (!validation.valid) {
+        send("game_notice", { target: payload.sender, message: validation.reason });
+        return;
+      }
+      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c, 1));
     });
     channel.on("broadcast", { event: "swap_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      if (!current || current.over || current.turn !== 1 || current.swapped) return;
-      const selected = current.hands[1]?.[payload.cardIndex];
-      if (!selected || !isDead(current, selected)) return;
-      publish(swapDead({ ...current, sel: payload.cardIndex }));
+      const validation = validateDeadSwap(current, { player: 1, cardIndex: payload.cardIndex });
+      if (!validation.valid) {
+        send("game_notice", { target: payload.sender, message: validation.reason });
+        return;
+      }
+      publish(swapDead({ ...current, sel: payload.cardIndex }, 1));
     });
     channel.on("presence", { event: "sync" }, () => {
       const members = Object.entries(channel.presenceState()).flatMap(([key, list]) => list.map(p => ({ ...p, key })));
