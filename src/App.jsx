@@ -51,7 +51,7 @@ function speakGameMessage(message) {
 }
 
 const RULES = [
-  ["Goal", "Be the first player to make two Sequences: an unbroken line of five chips horizontally, vertically or diagonally."],
+  ["Goal", "In 2-player and 4-player team games, make two Sequences. In a 3-player free-for-all, make one Sequence. A Sequence is five connected chips in a straight horizontal, vertical or diagonal line."],
   ["Play a card", "Choose a card, then place your chip on an unoccupied matching space. Most cards appear twice on the board."],
   ["Two-eyed Jacks (J♦, J♣)", "Wild cards. Place a chip on any unoccupied non-corner space."],
   ["One-eyed Jacks (J♥, J♠)", "Remove one opponent chip, unless it belongs to a completed Sequence."],
@@ -208,7 +208,7 @@ export default function App() {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is not supported in this browser.");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream; setMicOn(true); setVoiceError("");
-      if (pendingVoiceRef.current.length) { const queued = pendingVoiceRef.current.splice(0); for (const signal of queued) { const pc = new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[signal.from] = pc; stream.getTracks().forEach(track=>pc.addTrack(track,stream)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:signal.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[signal.from]:e.streams[0]})); if(signal.kind==="offer"){await pc.setRemoteDescription(signal.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:signal.from,from:playerId,kind:"answer",description:pc.localDescription});} } }
+      if (pendingVoiceRef.current.length) { const queued = pendingVoiceRef.current.splice(0); for (const signal of queued) { let pc=peerConnectionsRef.current[signal.from]; if(!pc){pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});peerConnectionsRef.current[signal.from]=pc;stream.getTracks().forEach(track=>pc.addTrack(track,stream));pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:signal.from,from:playerId,kind:"ice",candidate:e.candidate});};pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[signal.from]:e.streams[0]}));} if(signal.kind==="offer"){await pc.setRemoteDescription(signal.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:signal.from,from:playerId,kind:"answer",description:pc.localDescription});}else if(signal.kind==="ice"&&signal.candidate){await pc.addIceCandidate(signal.candidate);} } }
       for (const peer of playersRef.current.filter(p => p.key !== playerId && p.seat >= 0)) {
         if (playerId > peer.key || peerConnectionsRef.current[peer.key]) continue;
         const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
@@ -442,7 +442,7 @@ export default function App() {
         </button>;
       }))}</div></section>
       <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
-        <div className="hand">{(state.hands[seat] || []).map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
+        <div className="hand">{(state.hands[seat] || []).map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value,seat)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
         <div className="actions"><button className="btn" disabled={!canSwap} onClick={swap}>Swap dead card</button>{host&&<button className="btn ghost" onClick={restart}>New game</button>}</div>
         {state.lastMove&&<div className="seq-last-move"><b>Latest move</b><span>{players.find(p=>p.seat===state.lastMove.seat)?.label || (state.lastMove.seat===seat?playerName:gameMode==="ai"?"Chip":"Player "+(state.lastMove.seat+1))} {state.lastMove.action} {rank(state.lastMove.card)}{SYM[state.lastMove.card[1]]} at {String.fromCharCode(65+state.lastMove.col)}{state.lastMove.row+1}</span></div>}
         <details className="log"><summary>Move history</summary><ol>{state.log.slice(0,12).map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>
