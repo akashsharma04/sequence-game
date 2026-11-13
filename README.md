@@ -1,22 +1,37 @@
-# Sequence
+# Sequence — Online Multiplayer
 
-Two-team Sequence board game (pass-and-play) built with React + Vite.
+React + Vite Sequence game with two-player room-code multiplayer, live board synchronization, responsive desktop/tablet/mobile layout, and Chip, an interactive rules assistant.
 
-## Run locally
-    npm install
-    npm run dev
+## Local setup
 
-## Deploy free on Vercel
-1. Push this folder to a GitHub repo.
-2. On vercel.com choose Add New, Project, then import the repo.
-3. Keep the defaults (Vite, build `npm run build`, output `dist`) and deploy.
+```bash
+npm install
+```
 
-## Files
-- `src/game.js`  pure game rules (board, deck, jacks, sequences)
-- `src/App.jsx`  UI (board, hand, hand-over screen, move history)
-- `src/styles.css` look and animations
-- The game auto-saves to the browser (localStorage).
+Copy `.env.example` to `.env.local` and fill in your Supabase Project URL and anon/publishable key:
 
-## Next: online play
-Keep the state from `game.js` on a server (Supabase Realtime, Firebase or PartyKit)
-and send each move as `{ r, c, cardIndex }`. Both clients run `playCard`.
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY
+```
+
+Then run `npm run dev`.
+
+## Supabase / Vercel setup
+
+1. Create a Supabase project.
+2. Copy Project URL and anon/publishable key from Project Settings → API.
+3. Add the values to local `.env.local`.
+4. Add the same two variables to Vercel → Project → Settings → Environment Variables for Preview and Production.
+5. Redeploy after setting Vercel variables.
+
+The MVP uses Supabase Realtime Broadcast and Presence; no database schema is needed. The host browser is authoritative and must stay connected during the match. Game state is not persisted; closing the host tab ends the session. Public Realtime channels and client-generated room codes are not strong access control, so this prototype is intended for casual play/testing rather than secure competitive play.
+
+## Rules
+
+- Two players, seven cards per hand, two Sequences to win.
+- Two-eyed Jacks (J♦, J♣) place on any empty non-corner space.
+- One-eyed Jacks (J♥, J♠) remove an unlocked opponent chip.
+- Four free corners count for both players.
+- A dead card can be swapped once during a turn.
+- Completed Sequence chips are locked; one chip may be shared by two Sequences.

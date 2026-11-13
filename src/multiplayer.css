@@ -1,0 +1,57 @@
+/* Multiplayer lobby, room UI and Chip assistant */
+.seq-lobby{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;text-align:center}
+.seq-logo{width:58px;height:58px;display:grid;place-items:center;border-radius:18px;background:#dfbf68;color:#173326;font-size:36px;box-shadow:0 8px 30px #0005}
+.seq-eyebrow{font:800 10px/1.4 system-ui,sans-serif;letter-spacing:.2em;color:#d1b96e;margin:20px 0 8px}
+.seq-lobby h1{font:600 clamp(44px,10vw,72px)/1 Georgia,serif;letter-spacing:-.06em;margin:0;color:#f5edd9}
+.seq-lobby h1 span{color:#dfbf68}.seq-subtitle{font:14px system-ui;color:#b6c9bd;margin:12px 0 26px}
+.seq-lobby-card{width:min(100%,420px);padding:24px;background:#0a2c24;border:1px solid #2f6b5a;border-radius:20px;text-align:left;box-shadow:0 20px 70px #0005}
+.seq-lobby-card h2{font:600 21px Georgia,serif;margin:0 0 18px}
+.seq-primary{border:0;border-radius:11px;padding:12px 17px;background:#dfbf68;color:#172b20;font-weight:800;cursor:pointer}
+.seq-primary:disabled{opacity:.45;cursor:not-allowed}.seq-lobby-card>.seq-primary{width:100%}
+.seq-or{display:flex;align-items:center;gap:12px;color:#75988a;font:11px system-ui;margin:18px 0}
+.seq-or span{height:1px;flex:1;background:#315b4b}
+.seq-lobby-card label{display:block;color:#bdcfc4;font:12px system-ui;margin-bottom:8px}
+.seq-join{display:flex;gap:8px}.seq-join input{min-width:0;flex:1;border:1px solid #426b59;border-radius:10px;background:#061e18;color:white;padding:12px;letter-spacing:.16em;text-transform:uppercase}
+.seq-note{font:12px/1.5 system-ui;color:#dfc77e;margin:12px 0 0}
+.seq-link{border:0;background:none;color:#dfc77e;text-decoration:underline;text-underline-offset:3px;padding:10px;cursor:pointer}
+.seq-footer{font:12px system-ui;color:#77988a;margin-top:26px}
+.seq-room-code{font:800 42px system-ui;letter-spacing:.22em;color:#e7cb7b;text-align:center;padding:20px}
+.seq-lobby-card>p{text-align:center;color:#afc4b7;font:13px system-ui}
+.seq-spinner{width:28px;height:28px;border:3px solid #315b4b;border-top-color:#dfbf68;border-radius:50%;animation:seqspin .8s linear infinite;margin:0 auto 16px}
+@keyframes seqspin{to{transform:rotate(360deg)}}
+.seq-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:4px 0 14px}
+.seq-header h1{font:600 clamp(23px,4vw,32px) Georgia,serif;margin:0;color:#f5edd9}
+.seq-header .seq-eyebrow{margin:0 0 4px}
+.seq-room-meta{display:flex;align-items:center;gap:8px;font:11px system-ui;color:#b8c9bd;white-space:nowrap}
+.seq-room-meta>span:first-child{width:8px;height:8px;border-radius:50%;background:#9b7860}
+.seq-room-meta>span.seq-live{background:#4cdb91;box-shadow:0 0 9px #4cdb91}
+.seq-room-meta button{border:1px solid #37614e;border-radius:20px;background:#0a2c24;color:#e7d9ad;padding:7px 10px;font:11px system-ui}
+.seq-app .team{flex-wrap:wrap}.seq-app .team small{font:10px system-ui;color:#9cb4a6}
+.seq-turn{display:flex;align-items:center;gap:12px;background:#0a2c24;border:1px solid #244c3a;border-radius:10px;padding:10px 13px;margin:10px 0 14px;font:12px system-ui}
+.seq-turn b{white-space:nowrap;color:#e8d28b}.seq-turn span{color:#b8c9bd}
+.seq-game-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(250px,.75fr);gap:16px;align-items:start}
+.seq-board-frame{min-width:0;padding:7px;border-radius:14px;background:linear-gradient(135deg,#8a5a2b,#5a3718 60%,#7a4d22);box-shadow:0 8px 24px #0009}
+.seq-board-frame .board{gap:clamp(1px,.3vw,3px)}
+.seq-hand-panel{min-width:0;background:#0a2c24;border:1px solid #2f5b48;border-radius:14px;padding:14px}
+.seq-panel-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.seq-panel-heading h2{font:600 20px Georgia,serif;margin:0}.seq-panel-heading span{font:10px system-ui;color:#9db3a5}
+.seq-hand-panel .hand{flex-wrap:wrap;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.seq-hand-panel .hc{width:100%;max-width:72px;justify-self:center}
+.seq-hand-panel .actions{flex-wrap:wrap;margin-top:8px}.seq-hand-panel .btn{font-size:13px;padding:9px 12px}
+.seq-rules{width:min(100%,420px);margin:12px auto 0;text-align:left}
+.seq-rules details{border-top:1px solid #315b4b;padding:9px 0;font:12px system-ui}
+.seq-rules summary{cursor:pointer;color:#e2cc87;font-weight:700}.seq-rules p{color:#b8c9bd;line-height:1.55;margin:7px 0 0}
+.seq-chip-helper{position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));z-index:30;display:flex;align-items:flex-end;flex-direction:column;gap:9px}
+.seq-chip-button{width:62px;height:68px;border:0;border-radius:22px 22px 24px 24px;background:linear-gradient(145deg,#f4d985,#c99b3c);color:#20362a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 9px 26px #0008;animation:seqfloat 3s ease-in-out infinite}
+.seq-mascot{width:36px;height:29px;border-radius:45%;background:#fff6dc;display:flex;align-items:center;justify-content:center;gap:7px;position:relative;box-shadow:inset 0 -3px 0 #e6d6ac}
+.seq-mascot i{width:4px;height:7px;border-radius:50%;background:#24372a}.seq-mascot b{position:absolute;width:9px;height:5px;border-bottom:2px solid #b66c48;border-radius:0 0 9px 9px;bottom:5px;left:14px}
+.seq-chip-button small{font:900 9px system-ui;letter-spacing:.04em}.seq-chip-popup{width:min(320px,calc(100vw - 28px));max-height:min(70svh,560px);overflow:auto;padding:15px;border-radius:16px;background:#f5efd9;color:#203328;box-shadow:0 12px 45px #0009;font:13px/1.5 system-ui}
+.seq-chip-popup header{display:flex;justify-content:space-between;align-items:center}.seq-chip-popup header button{border:0;background:none;color:#203328;font-size:23px}.seq-chip-popup p{margin:10px 0}.seq-chip-tip{padding:10px;background:#e8dfc2;border-radius:9px}
+.seq-chip-popup .seq-rules{margin-top:8px}.seq-chip-popup .seq-rules details{border-color:#d5caa8}.seq-chip-popup .seq-rules summary{color:#6c511b}.seq-chip-popup .seq-rules p{color:#4d594d}
+@keyframes seqfloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+.seq-winner{position:fixed;inset:0;z-index:25;background:#04140fdc;display:grid;place-items:center;padding:20px}
+.seq-winner>div{width:min(100%,360px);padding:30px;border:1px solid #55765a;border-radius:22px;background:#123329;text-align:center;box-shadow:0 25px 90px #0008}
+.seq-winner h2{font:bold 32px Georgia,serif;margin:8px}.seq-winner p{color:#b8c9bd}.seq-trophy{font-size:48px}
+@media(max-width:760px){.seq-game-layout{grid-template-columns:1fr;gap:10px}.seq-hand-panel{padding:10px}.seq-hand-panel .hand{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.seq-hand-panel .hc{max-width:60px}.seq-hand-panel .big{font-size:clamp(18px,6vw,29px)}.seq-header{align-items:flex-start}.seq-room-meta{flex-wrap:wrap;justify-content:flex-end}.seq-turn{align-items:flex-start;flex-direction:column;gap:4px}.seq-app .team{padding:7px;gap:6px}}
+@media(max-width:390px){.seq-app{padding-left:5px;padding-right:5px}.seq-board-frame{padding:4px}.seq-room-meta button{padding:6px}.seq-app .team small{display:none}.seq-hand-panel .hc em{font-size:7px}}
+@media(orientation:landscape) and (max-height:600px) and (min-width:650px){.seq-game-layout{grid-template-columns:minmax(0,1.35fr) minmax(230px,.7fr)}.seq-board-frame{max-width:min(76vh,650px);margin:auto}.seq-hand-panel{padding:9px}}
+@media(prefers-reduced-motion:reduce){.seq-chip-button,.seq-spinner{animation:none}}
