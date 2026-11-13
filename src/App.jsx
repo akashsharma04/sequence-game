@@ -112,6 +112,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [aiThought, setAiThought] = useState("");
+  const [aiPreview, setAiPreview] = useState(null);
   const [seat, setSeat] = useState(-1);
   const [host, setHost] = useState(false);
   const [state, setState] = useState(null);
@@ -144,28 +145,61 @@ export default function App() {
   useEffect(() => { hostRef.current = host; }, [host]);
 
   useEffect(() => {
-    if (gameMode !== "ai" || !state || state.over || state.turn !== 1) return;
-    setAiThought("Chip is studying the board…");
-    const timer = window.setTimeout(() => {
+    if (gameMode !== "ai" || !state || state.over || state.turn !== 1) {
+      setAiThought("");
+      setAiPreview(null);
+      return;
+    }
+    const timers = [];
+    const later = (fn, delay) => timers.push(window.setTimeout(fn, delay));
+    setAiPreview(null);
+    setAiThought("Chip is looking over the whole board…");
+    later(() => {
       const current = stateRef.current;
       if (!current || current.over || current.turn !== 1) return;
-      const move = chooseAiMove(current, difficulty);
-      if (move) {
-        const next = playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1);
-        const sequenceMade = next.seqs[1].length > current.seqs[1].length;
-        setAiThought(sequenceMade ? "I found a move that completes my Sequence!" : "I am checking your threats and building my own line.");
-        publish(next);
-        window.setTimeout(() => setAiThought(""), 2600);
-        return;
-      }
-      const deadIndex = current.hands[1].findIndex(card => isDead(current, card));
-      if (deadIndex >= 0 && !current.swapped) {
-        setAiThought("I have a dead card, so I am exchanging it for a new one.");
-        publish(swapDead({ ...current, sel: deadIndex }, 1));
-        window.setTimeout(() => setAiThought(""), 2600);
-      } else setAiThought("I am reviewing the available moves…");
-    }, 650);
-    return () => window.clearTimeout(timer);
+      setAiThought("Checking my cards and finding every legal space…");
+      later(() => {
+        const latest = stateRef.current;
+        if (!latest || latest.over || latest.turn !== 1) return;
+        const move = chooseAiMove(latest, difficulty);
+        if (move) {
+          const card = latest.hands[1][move.cardIndex];
+          const col = String.fromCharCode(65 + move.c);
+          const next = playCard({ ...latest, sel: move.cardIndex }, move.r, move.c, 1);
+          const sequenceMade = next.seqs[1].length > latest.seqs[1].length;
+          const hasThreat = latest.seqs[0].length > 0;
+          setAiPreview({ r: move.r, c: move.c, card });
+          setAiThought(sequenceMade
+            ? `I found a winning line! Playing ${rank(card)}${SYM[card[1]]} at ${col}${move.r + 1}…`
+            : hasThreat
+              ? `I’m checking your threats. My choice is ${rank(card)}${SYM[card[1]]} at ${col}${move.r + 1}…`
+              : `I’ve compared my options. I’ll play ${rank(card)}${SYM[card[1]]} at ${col}${move.r + 1}…`);
+          later(() => {
+            const ready = stateRef.current;
+            if (!ready || ready.over || ready.turn !== 1) return;
+            publish(playCard({ ...ready, sel: move.cardIndex }, move.r, move.c, 1));
+            setAiPreview(null);
+            setAiThought("Move played. I’m checking the new board position…");
+            later(() => setAiThought(""), 1400);
+          }, 1100);
+          return;
+        }
+        const deadIndex = latest.hands[1].findIndex(card => isDead(latest, card, 1));
+        if (deadIndex >= 0 && !latest.swapped) {
+          const deadCard = latest.hands[1][deadIndex];
+          setAiThought(`No spaces left for ${rank(deadCard)}${SYM[deadCard[1]]}. I’m exchanging it for a fresh card…`);
+          later(() => {
+            const ready = stateRef.current;
+            if (ready && !ready.over && ready.turn === 1) publish(swapDead({ ...ready, sel: deadIndex }, 1));
+            setAiThought("");
+          }, 1100);
+        } else {
+          setAiThought("I’m reviewing the board for another option…");
+          later(() => setAiThought(""), 1400);
+        }
+      }, 1050);
+    }, 950);
+    return () => timers.forEach(window.clearTimeout);
   }, [gameMode, state, difficulty]);
 
   useEffect(() => {
@@ -434,13 +468,13 @@ export default function App() {
       <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={micOn ? stopVoice : startVoice} aria-pressed={micOn}>{micOn ? "🎙 Mic on" : "🎙 Join voice"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{Array.from({length:state.seatCount},(_,i) => { const ti=teamForSeat(state,i), t=TEAMS[ti], member=players.find(p=>p.seat===i); return <div key={i} className={`team ${i === state.turn ? "on" : ""}`} style={{"--c":t.color}}><span className="dot"/><b>{t.name} · P{i+1}</b><small>{i===seat?playerName:gameMode==="ai"&&i===1?"Chip · AI":member?.label||"Waiting…"}</small><div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[ti].length ? "full" : ""}`}/>)}</div></div>; })}</section>
-    <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>{gameMode==="ai"&&aiThought&&<div className="seq-ai-thinking">🤖 {aiThought}</div>}
+    <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>{gameMode==="ai"&&aiThought&&<div className="seq-ai-thinking" role="status"><span className="ai-thinking-icon">🤖</span><span className="ai-thinking-copy"><b>Chip is thinking</b><small>{aiThought}</small></span><span className="ai-thinking-dots"><i/><i/><i/></span></div>}
     <div className="seq-game-layout">
       <section className="seq-board-frame"><div className="board">{ROWS.map((row,r)=>row.map((value,c)=>{
         const id = r*10+c, chip = state.chips[r][c], hit = moves.some(([rr,cc])=>rr===r&&cc===c);
-        return <button key={id} className={`cell ${isCorner(r,c)?"wild":""} ${isRed(value)?"red":""} ${hit?"ok":""} ${state.last?.[0]===r&&state.last?.[1]===c?"last":""} ${sequenceCells.has(id)?"inseq":""} ${winningCells.has(id)?"winner-cell":""}`} disabled={!hit} onClick={()=>playAt(r,c)} aria-label={isCorner(r,c)?"Free corner":`${rank(value)} of ${value[1]}`}>
+        return <button key={id} className={`cell ${isCorner(r,c)?"wild":""} ${isRed(value)?"red":""} ${hit?"ok":""} ${state.last?.[0]===r&&state.last?.[1]===c?"last":""} ${sequenceCells.has(id)?"inseq":""} ${winningCells.has(id)?"winner-cell":""} ${aiPreview?.r===r&&aiPreview?.c===c?"ai-target":""}`} disabled={!hit} onClick={()=>playAt(r,c)} aria-label={isCorner(r,c)?"Free corner":`${rank(value)} of ${value[1]}`}>
           {isCorner(r,c)?<span className="star">★</span>:<><span className="rk">{rank(value)}</span><span className="st">{SYM[value[1]]}</span></>}
-          {chip !== null && <i className={`chip ${state.locked[r][c]?"lock":""}`} style={{"--c":TEAMS[chip].color,"--d":TEAMS[chip].dark}}/>}
+          {chip !== null && <i className={`chip ${state.locked[r][c]?"lock":""}`} style={{"--c":TEAMS[chip].color,"--d":TEAMS[chip].dark}}/>}{aiPreview?.r===r&&aiPreview?.c===c&&chip===null&&<span className="ai-aim" aria-label="Chip is considering this space">🤖</span>}
         </button>;
       }))}</div></section>
       <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
