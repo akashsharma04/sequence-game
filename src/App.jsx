@@ -143,18 +143,25 @@ export default function App() {
 
   useEffect(() => {
     if (gameMode !== "ai" || !state || state.over || state.turn !== 1) return;
+    setAiThought("Chip is studying the board…");
     const timer = window.setTimeout(() => {
       const current = stateRef.current;
       if (!current || current.over || current.turn !== 1) return;
       const move = chooseAiMove(current, difficulty);
       if (move) {
-        publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
+        const next = playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1);
+        const sequenceMade = next.seqs[1].length > current.seqs[1].length;
+        setAiThought(sequenceMade ? "I found a move that completes my Sequence!" : "I am checking your threats and building my own line.");
+        publish(next);
+        window.setTimeout(() => setAiThought(""), 2600);
         return;
       }
       const deadIndex = current.hands[1].findIndex(card => isDead(current, card));
       if (deadIndex >= 0 && !current.swapped) {
+        setAiThought("I have a dead card, so I am exchanging it for a new one.");
         publish(swapDead({ ...current, sel: deadIndex }, 1));
-      }
+        window.setTimeout(() => setAiThought(""), 2600);
+      } else setAiThought("I am reviewing the available moves…");
     }, 650);
     return () => window.clearTimeout(timer);
   }, [gameMode, state, difficulty]);
@@ -314,7 +321,7 @@ export default function App() {
     : isDead(state, selected) ? "Both spaces for this card are occupied. Swap it for a new card."
     : isJack(selected) ? twoEyed(selected) ? "Wild Jack! Choose any empty space on the board." : "One-eyed Jack! Remove an opponent chip that is not in a completed Sequence."
     : "Tap one of the glowing spaces to place your chip."
-    : gameMode === "ai" && state.turn === 1 ? "Chip is thinking…" : `Waiting for ${team.name} to play…`;
+    : gameMode === "ai" && state.turn === 1 ? (aiThought || "Chip is thinking…") : `Waiting for ${team.name} to play…`;
 
   const chooseCard = index => {
     if (!myTurn) return;
