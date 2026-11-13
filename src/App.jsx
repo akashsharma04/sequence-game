@@ -13,6 +13,43 @@ const playerId = (() => {
 })();
 const roomCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
+function playCelebration(kind) {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      const context = new AudioContextClass();
+      const notes = kind === "win" ? [523, 659, 784, 1047] : kind === "lose" ? [392, 330, 262] : [659, 784, 988];
+      notes.forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = context.currentTime + index * (kind === "sequence" ? 0.11 : 0.2);
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.16, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.24);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.26);
+      });
+      window.setTimeout(() => context.close(), 1600);
+    }
+  } catch (error) {
+    // Sound is an enhancement; gameplay should continue if audio is unavailable.
+  }
+}
+
+function speakGameMessage(message) {
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = "en-US";
+  utterance.rate = 0.95;
+  utterance.pitch = 1.05;
+  window.speechSynthesis.speak(utterance);
+}
+
 const RULES = [
   ["Goal", "Be the first player to make two Sequences: an unbroken line of five chips horizontally, vertically or diagonally."],
   ["Play a card", "Choose a card, then place your chip on an unoccupied matching space. Most cards appear twice on the board."],
@@ -45,7 +82,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [notice, setNotice] = useState("");
   const [chipOpen, setChipOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);\n  const [soundEnabled, setSoundEnabled] = useState(true);\n  const previousToastRef = useRef("");\n  const previousOverRef = useRef(false);
   const channelRef = useRef(null);
   const stateRef = useRef(null);
   const hostRef = useRef(false);
@@ -54,6 +91,25 @@ export default function App() {
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = host; }, [host]);
+
+  useEffect(() => {
+    if (!state) {
+      previousToastRef.current = "";
+      previousOverRef.current = false;
+      return;
+    }
+    if (soundEnabled && state.toast === "Sequence!" && previousToastRef.current !== "Sequence!" && !state.over) {
+      playCelebration("sequence");
+      speakGameMessage("Sequence!");
+    }
+    if (soundEnabled && state.over && !previousOverRef.current) {
+      const won = seat === state.turn;
+      playCelebration(won ? "win" : "lose");
+      speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
+    }
+    previousToastRef.current = state.toast;
+    previousOverRef.current = state.over;
+  }, [state, seat, soundEnabled]);
 
   const send = (event, payload = {}) => channelRef.current?.send({
     type: "broadcast", event, payload: { ...payload, sender: playerId }
@@ -215,7 +271,7 @@ export default function App() {
   if (!state) return null;
   return <main className="app seq-app" style={{ "--team": team.color }}>
     <header className="seq-header"><div><p className="seq-eyebrow">SEQUENCE · ONLINE</p><h1>Game table</h1></div>
-      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
+      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
       <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : i === 0 ? "Host" : "Opponent"}</small>
