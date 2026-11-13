@@ -202,9 +202,36 @@ export default function App() {
     send("game_state", { state: next });
   };
 
+  const startVoice = async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is not supported in this browser.");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStreamRef.current = stream; setMicOn(true); setVoiceError("");
+      for (const peer of playersRef.current.filter(p => p.key !== playerId && p.seat >= 0)) {
+        if (playerId > peer.key || peerConnectionsRef.current[peer.key]) continue;
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        peerConnectionsRef.current[peer.key] = pc;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        pc.onicecandidate = event => { if (event.candidate) send("voice_signal", { to: peer.key, from: playerId, kind: "ice", candidate: event.candidate }); };
+        pc.ontrack = event => setRemoteStreams(prev => ({ ...prev, [peer.key]: event.streams[0] }));
+        const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+        send("voice_signal", { to: peer.key, from: playerId, kind: "offer", description: pc.localDescription });
+      }
+    } catch (error) { setVoiceError(error.message || "Microphone permission was denied."); setMicOn(false); }
+  };
+  const stopVoice = () => {
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
+    Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+    peerConnectionsRef.current = {}; setRemoteStreams({}); setMicOn(false);
+  };
+  useEffect(() => () => {
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+  }, []);
   const leave = async () => {
     if (channelRef.current && supabase) await supabase.removeChannel(channelRef.current);
-    channelRef.current = null; stateRef.current = null; hostIdRef.current = null;
+    stopVoice(); channelRef.current = null; stateRef.current = null; hostIdRef.current = null;
     setState(null); setRoom(""); setSeat(-1); setHost(false); setPlayers([]);
     setConnected(false); setMode("lobby"); setChipOpen(false);
   };
@@ -218,6 +245,7 @@ export default function App() {
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
       if (hostRef.current && payload.sender !== playerId && stateRef.current) { const members = Object.entries(channel.presenceState()).flatMap(([key,list]) => list.map(p => ({...p,key}))); const used = new Set(members.filter(p => p.seat >= 0).map(p => p.seat)); const free = Array.from({length:stateRef.current.seatCount},(_,i)=>i).find(i=>!used.has(i)); if (free === undefined) { send("game_notice",{target:payload.sender,message:"This room is full."}); return; } send("seat_assignment",{target:payload.sender,seat:free}); send("game_state",{state:stateRef.current}); }
     });
+    channel.on("broadcast", { event: "voice_signal" }, async ({ payload }) => { if (payload.to !== playerId || !localStreamRef.current) return; try { let pc=peerConnectionsRef.current[payload.from]; if(!pc){ pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[payload.from]=pc; localStreamRef.current.getTracks().forEach(track=>pc.addTrack(track,localStreamRef.current)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:payload.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[payload.from]:e.streams[0]})); } if(payload.kind==="offer"){await pc.setRemoteDescription(payload.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:payload.from,from:playerId,kind:"answer",description:pc.localDescription});}else if(payload.kind==="answer"){await pc.setRemoteDescription(payload.description);}else if(payload.kind==="ice"&&payload.candidate){await pc.addIceCandidate(payload.candidate);} }catch(error){setVoiceError("Voice connection could not be established. Try toggling the microphone.");} });
     channel.on("broadcast", { event: "chat_message" }, ({ payload }) => { setChatMessages(items => [...items, payload.message].slice(-40)); });
     channel.on("broadcast", { event: "seat_assignment" }, async ({ payload }) => { if (payload.target !== playerId) return; setSeat(payload.seat); await channel.track({ label: playerName, seat: payload.seat }); send("join_request"); });
     channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {
@@ -399,7 +427,7 @@ export default function App() {
   if (!state) return null;
   return <main className="app seq-app" style={{ "--team": team.color }}>
     <header className="seq-header"><div><p className="seq-eyebrow">SEQUENCE · ONLINE</p><h1>Game table</h1></div>
-      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
+      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={micOn ? stopVoice : startVoice} aria-pressed={micOn}>{micOn ? "🎙 Mic on" : "🎙 Join voice"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{Array.from({length:state.seatCount},(_,i) => { const ti=teamForSeat(state,i), t=TEAMS[ti], member=players.find(p=>p.seat===i); return <div key={i} className={`team ${i === state.turn ? "on" : ""}`} style={{"--c":t.color}}><span className="dot"/><b>{t.name} · P{i+1}</b><small>{i===seat?playerName:gameMode==="ai"&&i===1?"Chip · AI":member?.label||"Waiting…"}</small><div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[ti].length ? "full" : ""}`}/>)}</div></div>; })}</section>
     <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>{gameMode==="ai"&&aiThought&&<div className="seq-ai-thinking">🤖 {aiThought}</div>}
@@ -412,7 +440,7 @@ export default function App() {
         </button>;
       }))}</div></section>
       <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
-        <div className="hand">{state.hands[seat].map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
+        <div className="hand">{(state.hands[seat] || []).map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
         <div className="actions"><button className="btn" disabled={!canSwap} onClick={swap}>Swap dead card</button>{host&&<button className="btn ghost" onClick={restart}>New game</button>}</div>
         {state.lastMove&&<div className="seq-last-move"><b>Latest move</b><span>{players.find(p=>p.seat===state.lastMove.seat)?.label || (state.lastMove.seat===seat?playerName:gameMode==="ai"?"Chip":"Player "+(state.lastMove.seat+1))} {state.lastMove.action} {rank(state.lastMove.card)}{SYM[state.lastMove.card[1]]} at {String.fromCharCode(65+state.lastMove.col)}{state.lastMove.row+1}</span></div>}
         <details className="log"><summary>Move history</summary><ol>{state.log.slice(0,12).map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>
@@ -420,6 +448,7 @@ export default function App() {
         <button className="seq-link" onClick={()=>setRulesOpen(v=>!v)}>Game rules</button>{rulesOpen&&<Rules/>}
       </aside>
     </div>
+    {voiceError && <div className="seq-notice" role="status"><span>{voiceError}</span><button onClick={()=>setVoiceError("")}>×</button></div>}{Object.entries(remoteStreams).map(([id,stream])=><audio key={id} autoPlay playsInline ref={el=>{if(el&&el.srcObject!==stream)el.srcObject=stream;}}/>)}
     {notice && <div className="seq-notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss notification">×</button></div>}
     {state.toast && !state.over && <div className="seq-toast" role="status">{state.toast}</div>}
     {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{teamForSeat(state,seat) === state.winner ? "Congratulations! You won!" : "Better luck next time!"}</h2><p>{TEAMS[state.winner ?? teamForSeat(state,state.turn)].name} {state.winReason || "completed the winning Sequences"}. The highlighted chips show the winning line.</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
