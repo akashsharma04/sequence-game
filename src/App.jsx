@@ -117,6 +117,7 @@ export default function App() {
   const [state, setState] = useState(null);
   const [players, setPlayers] = useState([]);
   const playersRef = useRef([]);
+  const pendingSeatsRef = useRef(new Map());
   const [connected, setConnected] = useState(false);
   const [notice, setNotice] = useState("");
   const [chipOpen, setChipOpen] = useState(false);
@@ -245,7 +246,7 @@ export default function App() {
     });
     channelRef.current = channel;
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
-      if (hostRef.current && payload.sender !== playerId && stateRef.current) { const members = Object.entries(channel.presenceState()).flatMap(([key,list]) => list.map(p => ({...p,key}))); const used = new Set(members.filter(p => p.seat >= 0).map(p => p.seat)); const free = Array.from({length:stateRef.current.seatCount},(_,i)=>i).find(i=>!used.has(i)); if (free === undefined) { send("game_notice",{target:payload.sender,message:"This room is full."}); return; } send("seat_assignment",{target:payload.sender,seat:free}); send("game_state",{state:stateRef.current}); }
+      if (hostRef.current && payload.sender !== playerId && stateRef.current) { const members = Object.entries(channel.presenceState()).flatMap(([key,list]) => list.map(p => ({...p,key}))); const existing = members.find(p=>p.key===payload.sender && p.seat>=0); if(existing){send("seat_assignment",{target:payload.sender,seat:existing.seat});send("game_state",{state:stateRef.current});return;} const used = new Set([...members.filter(p => p.seat >= 0).map(p => p.seat),...pendingSeatsRef.current.values()]); const free = Array.from({length:stateRef.current.seatCount},(_,i)=>i).find(i=>!used.has(i)); if (free === undefined) { send("game_notice",{target:payload.sender,message:"This room is full."}); return; } pendingSeatsRef.current.set(payload.sender,free); send("seat_assignment",{target:payload.sender,seat:free}); send("game_state",{state:stateRef.current}); }
     });
     channel.on("broadcast", { event: "voice_signal" }, async ({ payload }) => { if (payload.to !== playerId) return; if (!localStreamRef.current) { pendingVoiceRef.current.push(payload); return; } try { let pc=peerConnectionsRef.current[payload.from]; if(!pc){ pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[payload.from]=pc; localStreamRef.current.getTracks().forEach(track=>pc.addTrack(track,localStreamRef.current)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:payload.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[payload.from]:e.streams[0]})); } if(payload.kind==="offer"){await pc.setRemoteDescription(payload.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:payload.from,from:playerId,kind:"answer",description:pc.localDescription});}else if(payload.kind==="answer"){await pc.setRemoteDescription(payload.description);}else if(payload.kind==="ice"&&payload.candidate){await pc.addIceCandidate(payload.candidate);} }catch(error){setVoiceError("Voice connection could not be established. Try toggling the microphone.");} });
     channel.on("broadcast", { event: "chat_message" }, ({ payload }) => { setChatMessages(items => [...items, payload.message].slice(-40)); });
@@ -285,7 +286,7 @@ export default function App() {
     channel.on("presence", { event: "sync" }, () => {
       const members = Object.entries(channel.presenceState()).flatMap(([key, list]) => list.map(p => ({ ...p, key })));
       const admitted = members.filter(p => Number.isInteger(p.seat) && p.seat >= 0).slice(0, 4);
-      playersRef.current = admitted; setPlayers(admitted);
+      playersRef.current = admitted; setPlayers(admitted);\n      admitted.forEach(member=>pendingSeatsRef.current.delete(member.key));
       const hostMember = members.find(p => p.seat === 0);
       if (hostMember) hostIdRef.current = hostMember.key;
       if (members.length > 4 && !members.some(p => p.key === playerId)) {
