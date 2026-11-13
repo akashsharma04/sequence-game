@@ -40,6 +40,42 @@ function playCelebration(kind) {
   }
 }
 
+
+function playLaunchSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const now = context.currentTime;
+    // A short original card-swish + bright tabletop chime.
+    const sweep = context.createOscillator();
+    const sweepGain = context.createGain();
+    sweep.type = "triangle";
+    sweep.frequency.setValueAtTime(720, now);
+    sweep.frequency.exponentialRampToValueAtTime(180, now + 0.22);
+    sweepGain.gain.setValueAtTime(0.0001, now);
+    sweepGain.gain.exponentialRampToValueAtTime(0.055, now + 0.035);
+    sweepGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+    sweep.connect(sweepGain); sweepGain.connect(context.destination);
+    sweep.start(now); sweep.stop(now + 0.25);
+    [587.33, 783.99, 1046.5].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = now + 0.16 + index * 0.095;
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.09, start + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
+      oscillator.connect(gain); gain.connect(context.destination);
+      oscillator.start(start); oscillator.stop(start + 0.44);
+    });
+    window.setTimeout(() => context.close(), 1100);
+  } catch (error) {
+    // Audio is optional; never block the game.
+  }
+}
+
 function speakGameMessage(message) {
   if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return;
   window.speechSynthesis.cancel();
@@ -124,6 +160,13 @@ export default function App() {
   const [chipOpen, setChipOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const introSoundPlayedRef = useRef(false);
+  const handleLobbyAudio = () => {
+    if (soundEnabled && !introSoundPlayedRef.current) {
+      introSoundPlayedRef.current = true;
+      playLaunchSound();
+    }
+  };
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [micOn, setMicOn] = useState(false);
   const [voiceError, setVoiceError] = useState("");
@@ -425,11 +468,12 @@ export default function App() {
     setProfileOpen(false);
   };
 
-  if (mode === "lobby") return <main className="seq-lobby">
-    <div className="seq-logo">♠</div><p className="seq-eyebrow">THE CLASSIC BOARD GAME</p>
-    <h1>Sequence<span>.</span></h1><p className="seq-subtitle">Think ahead. Play together. Make your Sequence.</p>
+  if (mode === "lobby") return <main className="seq-lobby seq-lobby-intro" onPointerDownCapture={handleLobbyAudio}>
+    <div className="seq-logo seq-logo-launch" aria-label="Game logo"><span>♠</span><i>●</i></div><p className="seq-eyebrow seq-intro-eyebrow">A STRATEGY GAME FOR EVERYONE</p>
+    <h1 className="seq-title-launch">Sequence<span>.</span></h1><p className="seq-subtitle seq-subtitle-launch">Your move. Make your mark. Connect five.</p>
+    <button className="seq-sound-toggle" type="button" onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "♫ Sound on" : "♫ Sound off"}</button>
     <section className="seq-lobby-card">
-      <h2>Play Sequence</h2>
+      <h2 className="seq-card-heading">Choose how to play</h2>
       <button className="seq-link seq-profile-link" onClick={() => setProfileOpen(value => !value)}>Player profile · {playerName} · {stats.wins} wins</button>
       {profileOpen && <div className="seq-profile">
         <label htmlFor="seq-player-name">Display name</label>
@@ -441,7 +485,7 @@ export default function App() {
         <p>{stats.played} games · {stats.wins} wins · {stats.losses} losses</p>
         <button className="seq-primary" onClick={saveProfile}>Save profile</button>
       </div>}
-      <button className="seq-primary" onClick={createAiGame}>♟ Play against Chip (AI)</button>
+      <button className="seq-primary" onClick={createAiGame}>♟ Play Now · Challenge Chip</button>
       <label htmlFor="seq-player-count">Players in online room</label><select id="seq-player-count" value={playerCount} onChange={e=>setPlayerCount(Number(e.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players · 2 teams</option></select><button className="seq-primary seq-secondary" onClick={createRoom}>＋ Create {playerCount}-player room</button>
       <div className="seq-or"><span/>OR<span/></div>
       <label htmlFor="sequence-room">Join with a room code</label>
