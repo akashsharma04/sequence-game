@@ -71,8 +71,41 @@ function Rules() {
   return <div className="seq-rules">{RULES.map(([title, body]) => <details key={title}><summary>{title}</summary><p>{body}</p></details>)}</div>;
 }
 
+function chooseAiMove(state, difficulty = "medium") {
+  const candidates = [];
+  state.hands[1].forEach((card, cardIndex) => {
+    playable(state, card, 1).forEach(([r, c]) => {
+      let score = Math.random() * (difficulty === "easy" ? 8 : 1);
+      if (difficulty !== "easy") {
+        const next = playCard({ ...state, sel: cardIndex }, r, c, 1);
+        score += (next.seqs[1].length - state.seqs[1].length) * 100;
+        score += (next.seqs[0].length - state.seqs[0].length) * -65;
+        const centerDistance = Math.abs(4.5 - r) + Math.abs(4.5 - c);
+        score -= centerDistance * (difficulty === "hard" ? 1.4 : 0.35);
+        if (card === "JD" || card === "JC") score -= difficulty === "hard" ? 2 : 0.5;
+        if (difficulty === "hard") {
+          const adjacent = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]]
+            .filter(([dr,dc]) => state.chips[r+dr]?.[c+dc] === 1).length;
+          score += adjacent * 1.8;
+        }
+      }
+      candidates.push({ cardIndex, r, c, score });
+    });
+  });
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0] || null;
+}
+
 export default function App() {
   const [mode, setMode] = useState("lobby");
+  const [gameMode, setGameMode] = useState("online");
+  const [difficulty, setDifficulty] = useState(localStorage.getItem("sequence-ai-difficulty") || "medium");
+  const [playerName, setPlayerName] = useState(localStorage.getItem("sequence-player-name") || "Player");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [stats, setStats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sequence-stats") || '{"played":0,"wins":0,"losses":0}'); }
+    catch { return { played: 0, wins: 0, losses: 0 }; }
+  });
   const [room, setRoom] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [seat, setSeat] = useState(-1);
@@ -87,6 +120,7 @@ export default function App() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const previousToastRef = useRef("");
   const previousOverRef = useRef(false);
+  const statsRecordedRef = useRef(false);
   const channelRef = useRef(null);
   const stateRef = useRef(null);
   const hostRef = useRef(false);
@@ -97,19 +131,45 @@ export default function App() {
   useEffect(() => { hostRef.current = host; }, [host]);
 
   useEffect(() => {
+    if (gameMode !== "ai" || !state || state.over || state.turn !== 1) return;
+    const timer = window.setTimeout(() => {
+      const current = stateRef.current;
+      if (!current || current.over || current.turn !== 1) return;
+      const move = chooseAiMove(current, difficulty);
+      if (move) {
+        publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
+        return;
+      }
+      const deadIndex = current.hands[1].findIndex(card => isDead(current, card));
+      if (deadIndex >= 0 && !current.swapped) {
+        publish(swapDead({ ...current, sel: deadIndex }, 1));
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [gameMode, state, difficulty]);
+
+  useEffect(() => {
     if (!state) {
       previousToastRef.current = "";
       previousOverRef.current = false;
       return;
     }
-    if (soundEnabled && state.toast?.includes("Sequence") && previousToastRef.current !== state.toast && !state.over) {
-      playCelebration("sequence");
+    if (state.toast?.includes("Sequence") && previousToastRef.current !== state.toast && !state.over) {
+      if (soundEnabled) playCelebration("sequence");
       if (voiceEnabled) speakGameMessage("Sequence completed!");
     }
-    if (soundEnabled && state.over && !previousOverRef.current) {
-      const won = seat === state.turn;
-      playCelebration(won ? "win" : "lose");
+    if (state.over && !previousOverRef.current) {
+      const won = seat === state.winner;
+      if (soundEnabled) playCelebration(won ? "win" : "lose");
       if (voiceEnabled) speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
+      if (!statsRecordedRef.current) {
+        setStats(previous => {
+          const next = { played: previous.played + 1, wins: previous.wins + (won ? 1 : 0), losses: previous.losses + (won ? 0 : 1) };
+          localStorage.setItem("sequence-stats", JSON.stringify(next));
+          return next;
+        });
+        statsRecordedRef.current = true;
+      }
     }
     previousToastRef.current = state.toast;
     previousOverRef.current = state.over;
@@ -151,18 +211,22 @@ export default function App() {
     channel.on("broadcast", { event: "move_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      if (!current || current.over || current.turn !== 1 || !Number.isInteger(payload.cardIndex)) return;
-      const selected = current.hands[1]?.[payload.cardIndex];
-      if (!selected || !playable(current, selected).some(([r,c]) => r === payload.r && c === payload.c)) return;
-      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c));
+      const validation = validateMove(current, { player: 1, cardIndex: payload.cardIndex, r: payload.r, c: payload.c });
+      if (!validation.valid) {
+        send("game_notice", { target: payload.sender, message: validation.reason });
+        return;
+      }
+      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c, 1));
     });
     channel.on("broadcast", { event: "swap_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      if (!current || current.over || current.turn !== 1 || current.swapped) return;
-      const selected = current.hands[1]?.[payload.cardIndex];
-      if (!selected || !isDead(current, selected)) return;
-      publish(swapDead({ ...current, sel: payload.cardIndex }));
+      const validation = validateDeadSwap(current, { player: 1, cardIndex: payload.cardIndex });
+      if (!validation.valid) {
+        send("game_notice", { target: payload.sender, message: validation.reason });
+        return;
+      }
+      publish(swapDead({ ...current, sel: payload.cardIndex }, 1));
     });
     channel.on("presence", { event: "sync" }, () => {
       const members = Object.entries(channel.presenceState()).flatMap(([key, list]) => list.map(p => ({ ...p, key })));
@@ -198,7 +262,17 @@ export default function App() {
     return true;
   };
 
+  const createAiGame = () => {
+    if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+    const initial = newGame(); initial.veil = false; initial.toast = "";
+    statsRecordedRef.current = false;
+    stateRef.current = initial; setState(initial); setRoom("SOLO"); setSeat(0);
+    setHost(true); hostRef.current = true; setPlayers([{ key: playerId, seat: 0 }, { key: "chip-ai", seat: 1 }]);
+    setConnected(true); setGameMode("ai"); setMode("game");
+  };
+
   const createRoom = async () => {
+    setGameMode("online");
     if (!supabase) { setNotice("Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local to enable online play."); return; }
     const code = roomCode();
     const initial = newGame(); initial.veil = false; initial.toast = "";
@@ -210,6 +284,7 @@ export default function App() {
   const joinRoom = async () => {
     const code = codeInput.trim().toUpperCase();
     if (code.length !== 6) { setNotice("Enter the six-character room code."); return; }
+    setGameMode("online");
     hostIdRef.current = null; joinRequestedRef.current = false;
     setHost(false); hostRef.current = false; setSeat(1);
     await connect(code, false);
@@ -228,7 +303,7 @@ export default function App() {
     : isDead(state, selected) ? "Both spaces for this card are occupied. Swap it for a new card."
     : isJack(selected) ? twoEyed(selected) ? "Wild Jack! Choose any empty space on the board." : "One-eyed Jack! Remove an opponent chip that is not in a completed Sequence."
     : "Tap one of the glowing spaces to place your chip."
-    : `Waiting for ${team.name} to play…`;
+    : gameMode === "ai" && state.turn === 1 ? "Chip is thinking…" : `Waiting for ${team.name} to play…`;
 
   const chooseCard = index => {
     if (!myTurn) return;
@@ -247,15 +322,36 @@ export default function App() {
   const restart = () => {
     if (!host) return;
     const next = newGame(); next.veil = false; next.toast = "";
+    statsRecordedRef.current = false;
     publish(next);
+  };
+
+  const saveProfile = () => {
+    const clean = playerName.trim().slice(0, 18) || "Player";
+    setPlayerName(clean);
+    localStorage.setItem("sequence-player-name", clean);
+    localStorage.setItem("sequence-ai-difficulty", difficulty);
+    setProfileOpen(false);
   };
 
   if (mode === "lobby") return <main className="seq-lobby">
     <div className="seq-logo">♠</div><p className="seq-eyebrow">THE CLASSIC BOARD GAME</p>
     <h1>Sequence<span>.</span></h1><p className="seq-subtitle">Think ahead. Play together. Make your Sequence.</p>
     <section className="seq-lobby-card">
-      <h2>Play with a friend</h2>
-      <button className="seq-primary" onClick={createRoom}>＋ Create a room</button>
+      <h2>Play Sequence</h2>
+      <button className="seq-link seq-profile-link" onClick={() => setProfileOpen(value => !value)}>Player profile · {playerName} · {stats.wins} wins</button>
+      {profileOpen && <div className="seq-profile">
+        <label htmlFor="seq-player-name">Display name</label>
+        <input id="seq-player-name" maxLength={18} value={playerName} onChange={event => setPlayerName(event.target.value)} />
+        <label htmlFor="seq-ai-level">AI difficulty</label>
+        <select id="seq-ai-level" value={difficulty} onChange={event => setDifficulty(event.target.value)}>
+          <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+        </select>
+        <p>{stats.played} games · {stats.wins} wins · {stats.losses} losses</p>
+        <button className="seq-primary" onClick={saveProfile}>Save profile</button>
+      </div>}
+      <button className="seq-primary" onClick={createAiGame}>♟ Play against Chip (AI)</button>
+      <button className="seq-primary seq-secondary" onClick={createRoom}>＋ Play with a friend · Create room</button>
       <div className="seq-or"><span/>OR<span/></div>
       <label htmlFor="sequence-room">Join with a room code</label>
       <div className="seq-join"><input id="sequence-room" value={codeInput} maxLength={6} placeholder="ABC123" onChange={e => setCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}/><button className="seq-primary" onClick={joinRoom}>Join</button></div>
@@ -281,7 +377,7 @@ export default function App() {
       <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
-      <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : i === 0 ? "Host" : "Opponent"}</small>
+      <span className="dot"/><b>{t.name}</b><small>{i === seat ? playerName : gameMode === "ai" ? "Chip · AI" : i === 0 ? "Host" : "Opponent"}</small>
       <div className="pips">{Array.from({length:WIN},(_,p)=><span key={p} className={`pip ${p < state.seqs[i].length ? "full" : ""}`}/>)}</div>
     </div>)}</section>
     <div className="seq-turn"><b>{myTurn ? "Your turn" : `${team.name}'s turn`}</b><span>{hint}</span></div>
@@ -293,7 +389,7 @@ export default function App() {
           {chip !== null && <i className={`chip ${state.locked[r][c]?"lock":""}`} style={{"--c":TEAMS[chip].color,"--d":TEAMS[chip].dark}}/>}
         </button>;
       }))}</div></section>
-      <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>Your hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
+      <aside className="seq-hand-panel"><div className="seq-panel-heading"><h2>{playerName}'s hand</h2><span>{myTurn ? "Choose a card" : "Opponent's turn"}</span></div>
         <div className="hand">{state.hands[seat].map((value,i)=><Card key={value+i} value={value} selected={myTurn&&state.sel===i} dead={isDead(state,value)} disabled={!myTurn} onClick={()=>chooseCard(i)}/>)}</div>
         <div className="actions"><button className="btn" disabled={!canSwap} onClick={swap}>Swap dead card</button>{host&&<button className="btn ghost" onClick={restart}>New game</button>}</div>
         <details className="log"><summary>Move history</summary><ol>{state.log.slice(0,12).map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>
