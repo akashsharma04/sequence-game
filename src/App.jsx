@@ -354,7 +354,7 @@ export default function App() {
   const winningCells = useMemo(() => new Set(state?.winningSequences?.flat() || []), [state]);
   const hint = !state ? "I’m Chip! I can explain the rules and help you choose a move."
     : gameMode === "online" && players.length < state.seatCount ? "Waiting for players to join the room…"
-    : state.over ? `${team.name} wins! Two Sequences completed.`
+    : state.over ? `${team.name} wins! ${state.winReason || "winning Sequence completed"}.`
     : myTurn ? !selected ? "Your turn. Pick a card from your hand."
     : isDead(state, selected) ? "Both spaces for this card are occupied. Swap it for a new card."
     : isJack(selected) ? twoEyed(selected) ? "Wild Jack! Choose any empty space on the board." : "One-eyed Jack! Remove an opponent chip that is not in a completed Sequence."
