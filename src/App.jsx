@@ -117,8 +117,14 @@ export default function App() {
       const current = stateRef.current;
       if (!current || current.over || current.turn !== 1) return;
       const move = chooseAiMove(current);
-      if (!move) return;
-      publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
+      if (move) {
+        publish(playCard({ ...current, sel: move.cardIndex }, move.r, move.c, 1));
+        return;
+      }
+      const deadIndex = current.hands[1].findIndex(card => isDead(current, card));
+      if (deadIndex >= 0 && !current.swapped) {
+        publish(swapDead({ ...current, sel: deadIndex }, 1));
+      }
     }, 650);
     return () => window.clearTimeout(timer);
   }, [gameMode, state]);
