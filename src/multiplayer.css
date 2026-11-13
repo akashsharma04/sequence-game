@@ -142,3 +142,26 @@
 @keyframes aiAimBounce{to{transform:translate(-50%,-65%) scale(1.12)}}
 @keyframes aiChipDrop{0%{opacity:0;transform:translateY(-32px) translateZ(28px) scale(.45) rotate(-18deg)}65%{opacity:1;transform:translateY(3px) translateZ(14px) scale(1.12) rotate(4deg)}100%{opacity:1;transform:translateY(0) translateZ(12px) scale(1) rotate(0)}}
 @media(prefers-reduced-motion:reduce){.ai-thinking-icon,.ai-thinking-dots i,.ai-aim,.seq-board-frame .cell.ai-target,.seq-board-frame .cell .chip{animation:none!important}}
+
+
+/* Branded launch-screen motion */
+.seq-lobby-intro{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#15513d 0%,#092b21 48%,#041b15 100%)}
+.seq-lobby-intro::before,.seq-lobby-intro::after{content:"";position:absolute;z-index:-1;pointer-events:none;border:1px solid #dfbf6830;border-radius:50%;width:min(78vw,620px);aspect-ratio:1;animation:introOrbit 18s linear infinite}
+.seq-lobby-intro::after{width:min(105vw,820px);animation-duration:26s;animation-direction:reverse}
+.seq-logo-launch{position:relative;animation:introLogo .9s cubic-bezier(.16,.9,.3,1.2) both;box-shadow:0 0 0 8px #dfbf6810,0 0 45px #dfbf6840}
+.seq-logo-launch span{display:block;animation:introSuit 2.6s ease-in-out infinite}
+.seq-logo-launch i{position:absolute;right:-7px;bottom:-5px;width:18px;height:18px;border:3px solid #0d3428;border-radius:50%;background:#e9cc79;color:#183628;font:9px system-ui;display:grid;place-items:center;box-shadow:0 2px 8px #0007}
+.seq-intro-eyebrow{animation:introFade .7s .2s both}
+.seq-title-launch{animation:introTitle .8s .12s cubic-bezier(.2,.8,.2,1) both;text-shadow:0 5px 30px #0006}
+.seq-subtitle-launch{animation:introFade .7s .38s both}
+.seq-sound-toggle{margin:-14px 0 20px;padding:7px 13px;border:1px solid #dfbf6866;border-radius:999px;background:#092b2188;color:#e9d99f;font:11px system-ui;cursor:pointer}
+.seq-lobby-card{animation:introCard .75s .3s cubic-bezier(.2,.8,.2,1) both}
+.seq-lobby-intro .seq-primary{transition:transform .18s,box-shadow .18s,filter .18s}
+.seq-lobby-intro .seq-primary:hover{transform:translateY(-2px);box-shadow:0 8px 22px #0005;filter:brightness(1.08)}
+@keyframes introLogo{from{opacity:0;transform:translateY(18px) scale(.72) rotate(-12deg)}to{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+@keyframes introSuit{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(8deg)}}
+@keyframes introTitle{from{opacity:0;transform:translateY(20px);letter-spacing:-.12em}to{opacity:1;transform:translateY(0);letter-spacing:-.06em}}
+@keyframes introFade{from{opacity:0}to{opacity:1}}
+@keyframes introCard{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes introOrbit{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.seq-lobby-intro::before,.seq-lobby-intro::after,.seq-logo-launch,.seq-logo-launch span,.seq-intro-eyebrow,.seq-title-launch,.seq-subtitle-launch,.seq-lobby-card{animation:none!important}}
