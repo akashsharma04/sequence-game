@@ -177,7 +177,7 @@ export default function App() {
       if (voiceEnabled) speakGameMessage("Sequence completed!");
     }
     if (state.over && !previousOverRef.current) {
-      const won = seat === state.winner;
+      const won = teamForSeat(state, seat) === state.winner;
       if (soundEnabled) playCelebration(won ? "win" : "lose");
       if (voiceEnabled) speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
       if (!statsRecordedRef.current) {
@@ -216,8 +216,10 @@ export default function App() {
     });
     channelRef.current = channel;
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
-      if (hostRef.current && payload.sender !== playerId && stateRef.current) send("game_state", { state: stateRef.current });
+      if (hostRef.current && payload.sender !== playerId && stateRef.current) { const members = Object.entries(channel.presenceState()).flatMap(([key,list]) => list.map(p => ({...p,key}))); const used = new Set(members.filter(p => p.seat >= 0).map(p => p.seat)); const free = Array.from({length:stateRef.current.seatCount},(_,i)=>i).find(i=>!used.has(i)); if (free === undefined) { send("game_notice",{target:payload.sender,message:"This room is full."}); return; } send("seat_assignment",{target:payload.sender,seat:free}); send("game_state",{state:stateRef.current}); }
     });
+    channel.on("broadcast", { event: "chat_message" }, ({ payload }) => { setChatMessages(items => [...items, payload.message].slice(-40)); });
+    channel.on("broadcast", { event: "seat_assignment" }, async ({ payload }) => { if (payload.target !== playerId) return; setSeat(payload.seat); await channel.track({ label: playerName, seat: payload.seat }); send("join_request"); });
     channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {
       if (payload.target === playerId) setNotice(payload.message || "Move could not be completed.");
     });
@@ -229,31 +231,35 @@ export default function App() {
     channel.on("broadcast", { event: "move_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      const validation = validateMove(current, { player: 1, cardIndex: payload.cardIndex, r: payload.r, c: payload.c });
+      const player = playersRef.current.find(p => p.key === payload.sender)?.seat;
+      if (!Number.isInteger(player) || player < 1) return;
+      const validation = validateMove(current, { player, cardIndex: payload.cardIndex, r: payload.r, c: payload.c });
       if (!validation.valid) {
         send("game_notice", { target: payload.sender, message: validation.reason });
         return;
       }
-      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c, 1));
+      publish(playCard({ ...current, sel: payload.cardIndex }, payload.r, payload.c, player));
     });
     channel.on("broadcast", { event: "swap_request" }, ({ payload }) => {
       if (!hostRef.current || payload.sender === playerId) return;
       const current = stateRef.current;
-      const validation = validateDeadSwap(current, { player: 1, cardIndex: payload.cardIndex });
+      const player = playersRef.current.find(p => p.key === payload.sender)?.seat;
+      if (!Number.isInteger(player) || player < 1) return;
+      const validation = validateDeadSwap(current, { player, cardIndex: payload.cardIndex });
       if (!validation.valid) {
         send("game_notice", { target: payload.sender, message: validation.reason });
         return;
       }
-      publish(swapDead({ ...current, sel: payload.cardIndex }, 1));
+      publish(swapDead({ ...current, sel: payload.cardIndex }, player));
     });
     channel.on("presence", { event: "sync" }, () => {
       const members = Object.entries(channel.presenceState()).flatMap(([key, list]) => list.map(p => ({ ...p, key })));
-      const admitted = members.slice(0, 2);
-      setPlayers(admitted);
+      const admitted = members.filter(p => Number.isInteger(p.seat) && p.seat >= 0).slice(0, 4);
+      playersRef.current = admitted; setPlayers(admitted);
       const hostMember = members.find(p => p.seat === 0);
       if (hostMember) hostIdRef.current = hostMember.key;
-      if (members.length > 2 && !members.some(p => p.key === playerId)) {
-        setNotice("This room already has two players.");
+      if (members.length > 4 && !members.some(p => p.key === playerId)) {
+        setNotice("This room is full.");
         supabase.removeChannel(channel); channelRef.current = null;
         setConnected(false); setRoom(""); setSeat(-1); setMode("lobby");
       }
@@ -266,7 +272,7 @@ export default function App() {
       channel.subscribe(async status => {
         if (status === "SUBSCRIBED") {
           setConnected(true);
-          await channel.track({ label: isHost ? "Blue player" : "Pink player", seat: isHost ? 0 : 1 });
+          await channel.track({ label: isHost ? playerName : "Joining…", seat: isHost ? 0 : -1 });
           resolve(true);
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") resolve(false);
       });
@@ -276,13 +282,13 @@ export default function App() {
       setConnected(false); setNotice("Could not connect. Check your Supabase URL, key and Realtime settings.");
       return false;
     }
-    setRoom(code); setMode(isHost ? "game" : "waiting");
+    setRoom(code); setMode("game");
     return true;
   };
 
   const createAiGame = () => {
     if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
-    const initial = newGame(); initial.veil = false; initial.toast = "";
+    const initial = newGame({ playerCount: 1 }); initial.veil = false; initial.toast = "";
     statsRecordedRef.current = false;
     stateRef.current = initial; setState(initial); setRoom("SOLO"); setSeat(0);
     setHost(true); hostRef.current = true; setPlayers([{ key: playerId, seat: 0 }, { key: "chip-ai", seat: 1 }]);
@@ -293,7 +299,7 @@ export default function App() {
     setGameMode("online");
     if (!supabase) { setNotice("Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local to enable online play."); return; }
     const code = roomCode();
-    const initial = newGame(); initial.veil = false; initial.toast = "";
+    const initial = newGame({ playerCount }); initial.veil = false; initial.toast = "";
     stateRef.current = initial; setState(initial);
     hostIdRef.current = playerId; joinRequestedRef.current = false;
     setHost(true); hostRef.current = true; setSeat(0);
@@ -304,18 +310,19 @@ export default function App() {
     if (code.length !== 6) { setNotice("Enter the six-character room code."); return; }
     setGameMode("online");
     hostIdRef.current = null; joinRequestedRef.current = false;
-    setHost(false); hostRef.current = false; setSeat(1);
+    setHost(false); hostRef.current = false; setSeat(-1);
     await connect(code, false);
   };
 
-  const team = state ? TEAMS[state.turn] : TEAMS[0];
+  const team = state ? TEAMS[teamForSeat(state, state.turn)] : TEAMS[0];
   const selected = state && state.sel >= 0 ? state.hands[state.turn][state.sel] : null;
-  const myTurn = !!state && seat === state.turn && !state.over && players.length >= 2;
+  const myTurn = !!state && seat === state.turn && !state.over && (gameMode === "ai" || players.length >= state.seatCount);
   const moves = myTurn && selected ? playable(state, selected) : [];
   const canSwap = myTurn && !!selected && !state.swapped && isDead(state, selected);
   const sequenceCells = useMemo(() => new Set(state ? state.seqs.flat().flat() : []), [state]);
+  const winningCells = useMemo(() => new Set(state?.winningSequences?.flat() || []), [state]);
   const hint = !state ? "I’m Chip! I can explain the rules and help you choose a move."
-    : players.length < 2 ? "Waiting for your opponent to join the room…"
+    : gameMode === "online" && players.length < state.seatCount ? "Waiting for players to join the room…"
     : state.over ? `${team.name} wins! Two Sequences completed.`
     : myTurn ? !selected ? "Your turn. Pick a card from your hand."
     : isDead(state, selected) ? "Both spaces for this card are occupied. Swap it for a new card."
@@ -339,7 +346,7 @@ export default function App() {
   };
   const restart = () => {
     if (!host) return;
-    const next = newGame(); next.veil = false; next.toast = "";
+    const next = newGame({ playerCount: gameMode === "ai" ? 1 : state.seatCount }); next.veil = false; next.toast = "";
     statsRecordedRef.current = false;
     publish(next);
   };
