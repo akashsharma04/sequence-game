@@ -161,7 +161,8 @@ export default function App() {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const introSoundPlayedRef = useRef(false);
-  const handleLobbyAudio = () => {
+  const handleLobbyAudio = (event) => {
+    if (event.target.closest?.(".seq-sound-toggle")) return;
     if (soundEnabled && !introSoundPlayedRef.current) {
       introSoundPlayedRef.current = true;
       playLaunchSound();
@@ -172,7 +173,6 @@ export default function App() {
   const [voiceError, setVoiceError] = useState("");
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef({});
-  const remoteAudioRef = useRef({});
   const pendingVoiceRef = useRef([]);
   const [remoteStreams, setRemoteStreams] = useState({});
   const previousToastRef = useRef("");
