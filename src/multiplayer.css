@@ -55,3 +55,9 @@
 @media(max-width:390px){.seq-app{padding-left:5px;padding-right:5px}.seq-board-frame{padding:4px}.seq-room-meta button{padding:6px}.seq-app .team small{display:none}.seq-hand-panel .hc em{font-size:7px}}
 @media(orientation:landscape) and (max-height:600px) and (min-width:650px){.seq-game-layout{grid-template-columns:minmax(0,1.35fr) minmax(230px,.7fr)}.seq-board-frame{max-width:min(76vh,650px);margin:auto}.seq-hand-panel{padding:9px}}
 @media(prefers-reduced-motion:reduce){.seq-chip-button,.seq-spinner{animation:none}}
+
+.seq-notice{position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:45;width:min(92vw,440px);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border:1px solid #dfbf68;border-radius:12px;background:#f5efd9;color:#203328;box-shadow:0 10px 32px #0008;font:600 13px/1.4 system-ui,sans-serif}
+.seq-notice button{border:0;background:transparent;color:inherit;font-size:22px;line-height:1}
+.seq-toast{position:fixed;top:max(68px,calc(env(safe-area-inset-top) + 56px));left:50%;transform:translateX(-50%);z-index:24;padding:10px 18px;border-radius:999px;background:#dfbf68;color:#173326;font:800 13px system-ui,sans-serif;box-shadow:0 8px 24px #0007;animation:seqtoast .25s ease-out}
+@keyframes seqtoast{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+@media(prefers-reduced-motion:reduce){.seq-toast{animation:none}}
