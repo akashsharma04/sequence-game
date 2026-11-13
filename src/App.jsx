@@ -286,7 +286,8 @@ export default function App() {
     channel.on("presence", { event: "sync" }, () => {
       const members = Object.entries(channel.presenceState()).flatMap(([key, list]) => list.map(p => ({ ...p, key })));
       const admitted = members.filter(p => Number.isInteger(p.seat) && p.seat >= 0).slice(0, 4);
-      playersRef.current = admitted; setPlayers(admitted);\n      admitted.forEach(member=>pendingSeatsRef.current.delete(member.key));
+      playersRef.current = admitted; setPlayers(admitted);
+      admitted.forEach(member=>pendingSeatsRef.current.delete(member.key));
       const hostMember = members.find(p => p.seat === 0);
       if (hostMember) hostIdRef.current = hostMember.key;
       if (members.length > 4 && !members.some(p => p.key === playerId)) {
