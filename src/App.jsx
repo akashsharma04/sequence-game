@@ -82,7 +82,11 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [notice, setNotice] = useState("");
   const [chipOpen, setChipOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);\n  const [soundEnabled, setSoundEnabled] = useState(true);\n  const previousToastRef = useRef("");\n  const previousOverRef = useRef(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const previousToastRef = useRef("");
+  const previousOverRef = useRef(false);
   const channelRef = useRef(null);
   const stateRef = useRef(null);
   const hostRef = useRef(false);
@@ -136,7 +140,10 @@ export default function App() {
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
       if (hostRef.current && payload.sender !== playerId && stateRef.current) send("game_state", { state: stateRef.current });
     });
-    channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {\n      if (payload.target === playerId) setNotice(payload.message || "Move could not be completed.");\n    });\n    channel.on("broadcast", { event: "game_state" }, ({ payload }) => {
+    channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {
+      if (payload.target === playerId) setNotice(payload.message || "Move could not be completed.");
+    });
+    channel.on("broadcast", { event: "game_state" }, ({ payload }) => {
       if (!hostRef.current && payload.sender === hostIdRef.current && payload.state) {
         stateRef.current = payload.state; setState(payload.state); setMode("game");
       }
@@ -293,6 +300,8 @@ export default function App() {
         <button className="seq-link" onClick={()=>setRulesOpen(v=>!v)}>Game rules</button>{rulesOpen&&<Rules/>}
       </aside>
     </div>
+    {notice && <div className="seq-notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss notification">×</button></div>}
+    {state.toast && !state.over && <div className="seq-toast" role="status">{state.toast}</div>}
     {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{state.winner === seat ? "Congratulations! You won!" : "Better luck next time!"}</h2><p>{TEAMS[state.winner ?? state.turn].name} completed two Sequences. Great game!</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
     <div className={`seq-chip-helper ${chipOpen?"open":""}`}>
       {chipOpen&&<section className="seq-chip-popup"><header><b>Chip · your game guide</b><button onClick={()=>setChipOpen(false)} aria-label="Close Chip">×</button></header>
