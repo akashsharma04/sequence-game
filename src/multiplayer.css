@@ -122,3 +122,23 @@
 @media(max-width:430px){.seq-app .top{grid-template-columns:repeat(2,minmax(0,1fr))}.seq-app .team{min-width:0}.seq-app .team b{font-size:11px}.seq-app .team small{font-size:9px}.seq-hand-panel{padding:9px}.seq-hand-panel .hand{gap:3px}.seq-hand-panel .hc{border-width:1px;border-radius:6px}.seq-hand-panel .corner-idx{font-size:9px}.seq-hand-panel .big{font-size:clamp(17px,6vw,25px)}.seq-room-meta button{font-size:10px;padding:6px 8px}.seq-header{gap:8px}}
 @media(orientation:landscape) and (max-height:650px){.seq-app{padding-top:6px}.seq-game-layout{grid-template-columns:minmax(0,1fr) minmax(220px,28vw);align-items:start}.seq-board-frame{width:min(100%,calc(100svh - 125px));max-width:calc(100svh - 125px)}.seq-hand-panel .hand{grid-template-columns:repeat(4,minmax(0,1fr))}.seq-hand-panel .hc{max-width:64px}.seq-header{margin-bottom:6px}.seq-turn{margin:6px 0;padding:7px 10px}}
 @media(prefers-reduced-motion:reduce){.seq-board-frame,.seq-hand-panel,.seq-hand-panel .hc,.seq-winner>div,.seq-trophy,.seq-ai-thinking{animation:none!important;transition:none!important}.seq-board-frame,.seq-hand-panel{transform:none!important}}
+
+
+/* Chip AI turn choreography: staged scan, preview and chip drop */
+.seq-ai-thinking{display:flex;align-items:center;gap:12px;min-height:64px;padding:12px 16px;border:1px solid #d7b45c;border-radius:14px;background:linear-gradient(110deg,#0a2c22,#174d39 55%,#0a2c22);box-shadow:0 8px 24px #0005,inset 0 1px #ffffff20;color:#f5e8c6}
+.ai-thinking-icon{font-size:26px;filter:drop-shadow(0 2px 4px #0008);animation:aiRobotFloat 1.3s ease-in-out infinite}
+.ai-thinking-copy{display:grid;gap:3px;flex:1;min-width:0}
+.ai-thinking-copy b{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#f5d887}
+.ai-thinking-copy small{font-size:13px;line-height:1.35;color:#fff5df}
+.ai-thinking-dots{display:flex;gap:4px;align-items:center}
+.ai-thinking-dots i{width:6px;height:6px;border-radius:50%;background:#f4d16c;animation:aiDot .8s ease-in-out infinite}
+.ai-thinking-dots i:nth-child(2){animation-delay:.14s}.ai-thinking-dots i:nth-child(3){animation-delay:.28s}
+.seq-board-frame .cell.ai-target{z-index:5;outline:3px solid #ffe27a;outline-offset:-3px;box-shadow:0 0 0 4px #ffe27a44,0 0 22px #ffe27a;animation:aiTargetPulse .55s ease-in-out infinite alternate}
+.ai-aim{position:absolute;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);font-size:clamp(13px,2vw,24px);filter:drop-shadow(0 3px 4px #000b);animation:aiAimBounce .55s ease-in-out infinite alternate;pointer-events:none}
+.seq-board-frame .cell .chip{animation:aiChipDrop .58s cubic-bezier(.16,.85,.28,1.25) both}
+@keyframes aiRobotFloat{50%{transform:translateY(-4px) rotate(-5deg)}}
+@keyframes aiDot{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-5px)}}
+@keyframes aiTargetPulse{to{filter:brightness(1.25);transform:translateZ(8px) scale(1.06)}}
+@keyframes aiAimBounce{to{transform:translate(-50%,-65%) scale(1.12)}}
+@keyframes aiChipDrop{0%{opacity:0;transform:translateY(-32px) translateZ(28px) scale(.45) rotate(-18deg)}65%{opacity:1;transform:translateY(3px) translateZ(14px) scale(1.12) rotate(4deg)}100%{opacity:1;transform:translateY(0) translateZ(12px) scale(1) rotate(0)}}
+@media(prefers-reduced-motion:reduce){.ai-thinking-icon,.ai-thinking-dots i,.ai-aim,.seq-board-frame .cell.ai-target,.seq-board-frame .cell .chip{animation:none!important}}
