@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ROWS, SYM, TEAMS, WIN, isCorner, isJack, twoEyed, isRed, rank, newGame, playable, isDead, playCard, swapDead } from "./game.js";
+import { ROWS, SYM, TEAMS, WIN, isCorner, isJack, twoEyed, isRed, rank, newGame, playable, isDead, playCard, swapDead, validateMove, validateDeadSwap } from "./game.js";
 import "./multiplayer.css";
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
@@ -98,18 +98,18 @@ export default function App() {
       previousOverRef.current = false;
       return;
     }
-    if (soundEnabled && state.toast === "Sequence!" && previousToastRef.current !== "Sequence!" && !state.over) {
+    if (soundEnabled && state.toast?.includes("Sequence") && previousToastRef.current !== state.toast && !state.over) {
       playCelebration("sequence");
-      speakGameMessage("Sequence!");
+      if (voiceEnabled) speakGameMessage("Sequence completed!");
     }
     if (soundEnabled && state.over && !previousOverRef.current) {
       const won = seat === state.turn;
       playCelebration(won ? "win" : "lose");
-      speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
+      if (voiceEnabled) speakGameMessage(won ? "Congratulations! You won!" : "Better luck next time!");
     }
     previousToastRef.current = state.toast;
     previousOverRef.current = state.over;
-  }, [state, seat, soundEnabled]);
+  }, [state, seat, soundEnabled, voiceEnabled]);
 
   const send = (event, payload = {}) => channelRef.current?.send({
     type: "broadcast", event, payload: { ...payload, sender: playerId }
@@ -136,7 +136,7 @@ export default function App() {
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
       if (hostRef.current && payload.sender !== playerId && stateRef.current) send("game_state", { state: stateRef.current });
     });
-    channel.on("broadcast", { event: "game_state" }, ({ payload }) => {
+    channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {\n      if (payload.target === playerId) setNotice(payload.message || "Move could not be completed.");\n    });\n    channel.on("broadcast", { event: "game_state" }, ({ payload }) => {
       if (!hostRef.current && payload.sender === hostIdRef.current && payload.state) {
         stateRef.current = payload.state; setState(payload.state); setMode("game");
       }
@@ -271,7 +271,7 @@ export default function App() {
   if (!state) return null;
   return <main className="app seq-app" style={{ "--team": team.color }}>
     <header className="seq-header"><div><p className="seq-eyebrow">SEQUENCE · ONLINE</p><h1>Game table</h1></div>
-      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
+      <div className="seq-room-meta"><span className={connected ? "seq-live" : ""}/>{connected ? "Connected" : "Connecting"}<button onClick={() => setSoundEnabled(value => !value)} aria-pressed={soundEnabled}>{soundEnabled ? "🔊 Sound on" : "🔇 Sound off"}</button><button onClick={() => setVoiceEnabled(value => !value)} aria-pressed={voiceEnabled}>{voiceEnabled ? "🗣 Voice on" : "🗣 Voice off"}</button><button onClick={() => navigator.clipboard?.writeText(room)}>Room {room} ⧉</button><button onClick={leave}>Exit</button></div>
     </header>
     <section className="top">{TEAMS.map((t,i) => <div key={t.name} className={`team ${i === state.turn ? "on" : ""}`} style={{ "--c": t.color }}>
       <span className="dot"/><b>{t.name}</b><small>{i === seat ? "You" : i === 0 ? "Host" : "Opponent"}</small>
@@ -293,7 +293,7 @@ export default function App() {
         <button className="seq-link" onClick={()=>setRulesOpen(v=>!v)}>Game rules</button>{rulesOpen&&<Rules/>}
       </aside>
     </div>
-    {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{team.name} wins!</h2><p>Two Sequences completed. Great game!</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
+    {state.over&&<div className="seq-winner"><div><div className="seq-trophy">🏆</div><p className="seq-eyebrow">GAME COMPLETE</p><h2>{state.winner === seat ? "Congratulations! You won!" : "Better luck next time!"}</h2><p>{TEAMS[state.winner ?? state.turn].name} completed two Sequences. Great game!</p>{host&&<button className="seq-primary" onClick={restart}>Play again</button>}<button className="seq-link" onClick={leave}>Back to lobby</button></div></div>}
     <div className={`seq-chip-helper ${chipOpen?"open":""}`}>
       {chipOpen&&<section className="seq-chip-popup"><header><b>Chip · your game guide</b><button onClick={()=>setChipOpen(false)} aria-label="Close Chip">×</button></header>
         <p>{hint}</p><p className="seq-chip-tip">{selected&&isJack(selected)?twoEyed(selected)?"A two-eyed Jack can be placed on any empty space.":"A one-eyed Jack removes an opponent chip, but not one in a completed Sequence.":"Build five connected chips in a straight line. Corners count for both players."}</p>
