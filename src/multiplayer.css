@@ -71,3 +71,10 @@
 .seq-profile input,.seq-profile select{width:100%;min-width:0;border:1px solid #426b59;border-radius:9px;background:#0d3026;color:#f5edd9;padding:10px;font:14px system-ui}
 .seq-profile p{margin:2px 0!important;text-align:center;color:#b8c9bd!important}
 .seq-profile .seq-primary{width:100%}
+
+.seq-ai-thinking,.seq-last-move{margin:8px 0;padding:10px 12px;border:1px solid #8b7541;border-radius:10px;background:#153b30;color:#f1dda0;font:12px/1.45 system-ui}
+.seq-last-move{display:grid;gap:4px;color:#e8d9ad}.seq-last-move span{color:#f5edd9}
+.seq-chat{margin-top:14px;padding-top:12px;border-top:1px solid #315b4b;font:12px system-ui}.seq-chat-list{max-height:150px;overflow:auto;margin:8px 0;padding:8px;border-radius:8px;background:#061e18}.seq-chat-list p{margin:4px 0;overflow-wrap:anywhere}.seq-chat form{display:flex;gap:6px}.seq-chat input{min-width:0;flex:1;border:1px solid #426b59;border-radius:8px;background:#061e18;color:white;padding:9px}.seq-chat .btn{padding:8px 12px}
+.cell.winner-cell{outline:3px solid #ffe27a;outline-offset:-3px;box-shadow:inset 0 0 0 3px #fff3a6,0 0 13px #ffe27a;animation:winnerGlow .9s ease-in-out infinite alternate}
+@keyframes winnerGlow{to{filter:brightness(1.18);box-shadow:inset 0 0 0 3px #fff3a6,0 0 22px #ffe27a}}
+.seq-profile select#seq-player-count,.seq-lobby-card>select{width:100%;margin:0 0 12px;border:1px solid #426b59;border-radius:9px;background:#0d3026;color:#f5edd9;padding:10px;font:14px system-ui}
