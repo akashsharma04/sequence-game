@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ROWS, SYM, TEAMS, WIN, isCorner, isJack, twoEyed, isRed, rank, newGame, playable, isDead, playCard, swapDead, validateMove, validateDeadSwap } from "./game.js";
+import { ROWS, SYM, TEAMS, WIN, isCorner, isJack, twoEyed, isRed, rank, newGame, playable, isDead, playCard, swapDead, validateMove, validateDeadSwap, teamForSeat } from "./game.js";
 import "./multiplayer.css";
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
@@ -108,16 +108,27 @@ export default function App() {
   });
   const [room, setRoom] = useState("");
   const [codeInput, setCodeInput] = useState("");
+  const [playerCount, setPlayerCount] = useState(2);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [aiThought, setAiThought] = useState("");
   const [seat, setSeat] = useState(-1);
   const [host, setHost] = useState(false);
   const [state, setState] = useState(null);
   const [players, setPlayers] = useState([]);
+  const playersRef = useRef([]);
   const [connected, setConnected] = useState(false);
   const [notice, setNotice] = useState("");
   const [chipOpen, setChipOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [micOn, setMicOn] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const localStreamRef = useRef(null);
+  const peerConnectionsRef = useRef({});
+  const remoteAudioRef = useRef({});
+  const [remoteStreams, setRemoteStreams] = useState({});
   const previousToastRef = useRef("");
   const previousOverRef = useRef(false);
   const statsRecordedRef = useRef(false);
