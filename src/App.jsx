@@ -128,6 +128,7 @@ export default function App() {
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef({});
   const remoteAudioRef = useRef({});
+  const pendingVoiceRef = useRef([]);
   const [remoteStreams, setRemoteStreams] = useState({});
   const previousToastRef = useRef("");
   const previousOverRef = useRef(false);
@@ -207,6 +208,7 @@ export default function App() {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access is not supported in this browser.");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream; setMicOn(true); setVoiceError("");
+      if (pendingVoiceRef.current.length) { const queued = pendingVoiceRef.current.splice(0); for (const signal of queued) { const pc = new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[signal.from] = pc; stream.getTracks().forEach(track=>pc.addTrack(track,stream)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:signal.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[signal.from]:e.streams[0]})); if(signal.kind==="offer"){await pc.setRemoteDescription(signal.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:signal.from,from:playerId,kind:"answer",description:pc.localDescription});} } }
       for (const peer of playersRef.current.filter(p => p.key !== playerId && p.seat >= 0)) {
         if (playerId > peer.key || peerConnectionsRef.current[peer.key]) continue;
         const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
@@ -223,7 +225,7 @@ export default function App() {
     localStreamRef.current?.getTracks().forEach(track => track.stop());
     localStreamRef.current = null;
     Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
-    peerConnectionsRef.current = {}; setRemoteStreams({}); setMicOn(false);
+    peerConnectionsRef.current = {}; pendingVoiceRef.current = []; setRemoteStreams({}); setMicOn(false);
   };
   useEffect(() => () => {
     localStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -245,7 +247,7 @@ export default function App() {
     channel.on("broadcast", { event: "join_request" }, ({ payload }) => {
       if (hostRef.current && payload.sender !== playerId && stateRef.current) { const members = Object.entries(channel.presenceState()).flatMap(([key,list]) => list.map(p => ({...p,key}))); const used = new Set(members.filter(p => p.seat >= 0).map(p => p.seat)); const free = Array.from({length:stateRef.current.seatCount},(_,i)=>i).find(i=>!used.has(i)); if (free === undefined) { send("game_notice",{target:payload.sender,message:"This room is full."}); return; } send("seat_assignment",{target:payload.sender,seat:free}); send("game_state",{state:stateRef.current}); }
     });
-    channel.on("broadcast", { event: "voice_signal" }, async ({ payload }) => { if (payload.to !== playerId || !localStreamRef.current) return; try { let pc=peerConnectionsRef.current[payload.from]; if(!pc){ pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[payload.from]=pc; localStreamRef.current.getTracks().forEach(track=>pc.addTrack(track,localStreamRef.current)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:payload.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[payload.from]:e.streams[0]})); } if(payload.kind==="offer"){await pc.setRemoteDescription(payload.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:payload.from,from:playerId,kind:"answer",description:pc.localDescription});}else if(payload.kind==="answer"){await pc.setRemoteDescription(payload.description);}else if(payload.kind==="ice"&&payload.candidate){await pc.addIceCandidate(payload.candidate);} }catch(error){setVoiceError("Voice connection could not be established. Try toggling the microphone.");} });
+    channel.on("broadcast", { event: "voice_signal" }, async ({ payload }) => { if (payload.to !== playerId) return; if (!localStreamRef.current) { pendingVoiceRef.current.push(payload); return; } try { let pc=peerConnectionsRef.current[payload.from]; if(!pc){ pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}); peerConnectionsRef.current[payload.from]=pc; localStreamRef.current.getTracks().forEach(track=>pc.addTrack(track,localStreamRef.current)); pc.onicecandidate=e=>{if(e.candidate)send("voice_signal",{to:payload.from,from:playerId,kind:"ice",candidate:e.candidate});}; pc.ontrack=e=>setRemoteStreams(prev=>({...prev,[payload.from]:e.streams[0]})); } if(payload.kind==="offer"){await pc.setRemoteDescription(payload.description);const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send("voice_signal",{to:payload.from,from:playerId,kind:"answer",description:pc.localDescription});}else if(payload.kind==="answer"){await pc.setRemoteDescription(payload.description);}else if(payload.kind==="ice"&&payload.candidate){await pc.addIceCandidate(payload.candidate);} }catch(error){setVoiceError("Voice connection could not be established. Try toggling the microphone.");} });
     channel.on("broadcast", { event: "chat_message" }, ({ payload }) => { setChatMessages(items => [...items, payload.message].slice(-40)); });
     channel.on("broadcast", { event: "seat_assignment" }, async ({ payload }) => { if (payload.target !== playerId) return; setSeat(payload.seat); await channel.track({ label: playerName, seat: payload.seat }); send("join_request"); });
     channel.on("broadcast", { event: "game_notice" }, ({ payload }) => {
