@@ -61,3 +61,6 @@
 .seq-toast{position:fixed;top:max(68px,calc(env(safe-area-inset-top) + 56px));left:50%;transform:translateX(-50%);z-index:24;padding:10px 18px;border-radius:999px;background:#dfbf68;color:#173326;font:800 13px system-ui,sans-serif;box-shadow:0 8px 24px #0007;animation:seqtoast .25s ease-out}
 @keyframes seqtoast{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 @media(prefers-reduced-motion:reduce){.seq-toast{animation:none}}
+
+.seq-lobby-card>.seq-secondary{width:100%;margin-top:10px;border:1px solid #b99a4b;background:#153c30;color:#f2e4b9}
+.seq-lobby-card>.seq-secondary:hover{background:#1d4b3b}
